@@ -1,9 +1,5 @@
 const zlib = require("zlib");
-const {
-  db,
-  getSeatalkAccessToken,
-  sendSeatalkGroupMessage,
-} = require("./_seatalk-common");
+const { db, getSeatalkAccessToken } = require("./_seatalk-common");
 const ROUTES = require("./_outbound-routes");
 // NOTE: _alert-image di-require lazy di dalam try (lihat bagian kirim gambar),
 // supaya kalau modul gambar bermasalah, alert teks tetap terkirim.
@@ -18,6 +14,39 @@ const MAX_IMPORT_AGE_MIN = 180;  // import yang lebih tua dari ini dianggap basi
 const MAX_MSG_CHARS = 3500;      // batas aman panjang 1 pesan SeaTalk
 const SEND_IMAGE = true;         // kirim gambar tabel dulu sebelum teks (false = teks aja)
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+// ---- Auto tag (mention) di alert teks. Semua harus member grup tujuan. ----
+const ENABLE_MENTION = true;     // false = alert tanpa tag
+const TAG_EMAILS = [
+  "kristian.yoga@spxexpress.com",
+  "m.badrianoor@spxexpress.com",
+  "aditya.ludbianoko@spxexpress.com",
+  "alpianor.alpianor@spxexpress.com",
+  "eka.prayogi@spxexpress.com",
+  "hananya.yudhohusodho@spxexpress.com",
+  "ilham.setiawan@spxexpress.com",
+  "dwi.putra@spxexpress.com",
+  "panji.pratama@spxexpress.com",
+  "ridwan.susanto@spxexpress.com",
+  "kurniawan.wawan@spxexpress.com",
+];
+const CC_EMAILS = [
+  "irwan.faiz@spxexpress.com",
+  "muhammad.reza@spxexpress.com",
+  "rizky.armanda@spxexpress.com",
+  "pratama.daniel@spxexpress.com",
+];
+
+const mentionTag = (email) => `<mention-tag target="seatalk://user?email=${email}"/>`;
+
+// Baris tag + cc yang ditempel di akhir pesan alert.
+function buildMentionText() {
+  if (!ENABLE_MENTION) return "";
+  const parts = [];
+  if (TAG_EMAILS.length) parts.push("Tag : " + TAG_EMAILS.map(mentionTag).join(" "));
+  if (CC_EMAILS.length) parts.push("Cc : " + CC_EMAILS.map(mentionTag).join(" "));
+  return parts.join("\n");
+}
 
 const TIERS = [
   { level: 6, min: 6000, short: "URGENT + Tambah Slot", title: "Urgent Need Additional Slot & Early Loading Segera!" },
@@ -115,6 +144,19 @@ async function sendGroupImage(accessToken, groupId, base64Png) {
   return res.json();
 }
 
+// Kirim teks alert (format 1 = markdown, wajib biar <mention-tag> jadi @tag beneran).
+async function sendAlertText(accessToken, groupId, text) {
+  const res = await fetch(`${SEATALK_API_BASE}/messaging/v2/group_chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      group_id: groupId,
+      message: { tag: "text", text: { format: 1, content: text } },
+    }),
+  });
+  return res.json();
+}
+
 // SeaTalk balikin { code: 0 } kalau sukses. Kalau bukan 0, anggap gagal biar
 // state "sudah dialert" gak ke-tandain padahal pesannya gak sampai.
 function assertSent(result, what) {
@@ -131,12 +173,12 @@ function formatWibStamp(isoStr) {
   return `${pad(d.getUTCDate())} ${bln[d.getUTCMonth()]} ${d.getUTCFullYear()} ${pad(d.getUTCHours())}.${pad(d.getUTCMinutes())} WIB`;
 }
 
-function chunkBlocks(blocks) {
+function chunkBlocks(blocks, maxChars = MAX_MSG_CHARS) {
   const messages = [];
   let current = "";
   blocks.forEach((b) => {
     const next = current ? current + "\n\n" + b : b;
-    if (next.length > MAX_MSG_CHARS && current) {
+    if (next.length > maxChars && current) {
       messages.push(current);
       current = b;
     } else {
@@ -209,7 +251,13 @@ exports.handler = async () => {
 
   if (toAlert.length) {
     toAlert.sort((a, b) => b.item.total - a.item.total);
-    const messages = chunkBlocks(toAlert.map((a) => buildBlock(a.item, a.tier)));
+    const mentionText = buildMentionText();
+    const messages = chunkBlocks(
+      toAlert.map((a) => buildBlock(a.item, a.tier)),
+      MAX_MSG_CHARS - mentionText.length - 2
+    );
+    // Tag + Cc ditempel di pesan terakhir (1x aja, biar gak spam notif).
+    if (mentionText) messages[messages.length - 1] += "\n\n" + mentionText;
     if (!groupId) throw new Error("Env var SEATALK_TARGET_GROUP_ID belum diset di Netlify.");
     console.log(`[occupancy-alert] ngirim ${toAlert.length} route ke grup ...${String(groupId).slice(-6)}`);
     const token = await getSeatalkAccessToken();
@@ -240,7 +288,7 @@ exports.handler = async () => {
 
     // 2) Teks alert (format asli).
     for (const text of messages) {
-      assertSent(await sendSeatalkGroupMessage(token, groupId, text), "teks");
+      assertSent(await sendAlertText(token, groupId, text), "teks");
     }
     toAlert.forEach((a) => {
       stateUpdates[a.key] = { level: a.tier.level, date: today, sentAt: now };
