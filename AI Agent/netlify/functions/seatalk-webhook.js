@@ -5,6 +5,15 @@ const {
   sendSeatalkPrivateMessage,
   answerModuleQuestion,
 } = require("./_seatalk-common");
+const { askGemini } = require("./_gemini-chat");
+
+// Nama mention bot persis seperti yang tampil di SeaTalk (buat dibersihin
+// dari teks pertanyaan). Bisa dioverride lewat env var BOT_MENTION_NAME.
+const BOT_MENTION_NAME = process.env.BOT_MENTION_NAME || "Smith - Reminder Support";
+
+const AI_FOOTER = "\n\nℹ️ Dijawab AI (Gemini). Mohon verifikasi kembali untuk memastikan keakuratannya.";
+const HELP_TEXT =
+  "Halo, aku Smith - Reminder Support 👋 Tanya apa aja soal operasional SOC, atau data live pakai kata kunci: late/transit (Inbound), aging/backlog (Outbound), stock/consumable (Inventory), performa/packing (Performance Bagger).";
 
 function isValidSignature(rawBody, signatureHeader) {
   const signingSecret = process.env.SEATALK_SIGNING_SECRET;
@@ -17,6 +26,41 @@ function isValidSignature(rawBody, signatureHeader) {
     return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));
   } catch {
     return false;
+  }
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Buang markup mention & nama bot dari teks, sisakan pertanyaannya aja.
+function cleanQuestion(text) {
+  return String(text || "")
+    .replace(/<mention-tag[^>]*\/?>(<\/mention-tag>)?/gi, " ")
+    .replace(new RegExp("@" + escapeRegExp(BOT_MENTION_NAME), "gi"), " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function buildAnswer(question) {
+  if (!question) return HELP_TEXT;
+
+  // 1) Data live dashboard dulu (akurat). null = bukan pertanyaan data.
+  try {
+    const dataAnswer = await answerModuleQuestion(question);
+    if (dataAnswer) return dataAnswer;
+  } catch (err) {
+    console.error("Gagal ambil data dashboard:", err);
+    return "Lagi ada gangguan ambil data dari dashboard, coba lagi sebentar ya.";
+  }
+
+  // 2) Pertanyaan bebas -> Gemini.
+  try {
+    const aiAnswer = await askGemini(question);
+    return aiAnswer + AI_FOOTER;
+  } catch (err) {
+    console.error("Gagal jawab pakai Gemini:", err);
+    return "Maaf, AI-nya lagi sibuk/gangguan. Coba tanya lagi sebentar lagi ya, atau pakai kata kunci data (late, aging, stock, performa).";
   }
 }
 
@@ -57,24 +101,17 @@ exports.handler = async (event) => {
 
   const seatalkEvent = body.event || {};
   const msg = seatalkEvent.message || {};
-  const messageText = msg.text && msg.text.content;
-  if (!messageText) {
+  if (!seatalkEvent.message) {
     return { statusCode: 200, body: "ok" };
   }
 
-  // TEMPORARY: log payload sekali buat mastiin nama field thread_id /
-  // message_id persis seperti yang diharapkan. Hapus kalau udah beres.
+  // TEMPORARY: log payload buat mastiin nama field thread_id / message_id /
+  // plain_text. Hapus kalau udah beres.
   console.log("SeaTalk event payload:", JSON.stringify(body));
 
-  let answer;
-  try {
-    answer =
-      (await answerModuleQuestion(messageText)) ||
-      "Maaf, aku belum ngerti pertanyaan itu. Coba tanya soal Stock/Consumable (Inventory), trip/Late Arrival/In Transit (Inbound), aging/backlog (Outbound), atau performa/packing (Performance Bagger) ya.";
-  } catch (err) {
-    console.error("Gagal ambil data dashboard:", err);
-    answer = "Lagi ada gangguan ambil data dari dashboard, coba lagi sebentar ya.";
-  }
+  const rawText = (msg.text && (msg.text.plain_text || msg.text.content)) || "";
+  const question = cleanQuestion(rawText);
+  const answer = await buildAnswer(question);
 
   try {
     const token = await getSeatalkAccessToken();
