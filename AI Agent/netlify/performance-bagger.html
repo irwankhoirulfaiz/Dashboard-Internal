@@ -1,0 +1,2400 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Performance Bagger - Internal Palangka Raya DC</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%237a1224'/%3E%3Cpath fill='%23ffffff' d='M12 2 4 6v5c0 5.2 3.4 9.9 8 11 4.6-1.1 8-5.8 8-11V6l-8-4Zm0 4.4 5 2.5v3.6c0 3.7-2.4 7.1-5 8.2-2.6-1.1-5-4.5-5-8.2V8.9l5-2.5Z'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        shopee: { DEFAULT: '#7a1224', dark: '#4e0b17', light: '#9c2436' },
+        lavender: { DEFAULT: '#7c6bb0', dark: '#4b3f72', light: '#a89ee0' }
+      }
+    }
+  }
+}
+</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- SheetJS & Chart.js & jsPDF -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; font-size: 11px; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  
+  table { border-collapse: separate; border-spacing: 0; width: 100%; }
+  th, td { padding: 8px 10px !important; line-height: 1.3; border-bottom: 1px solid #e2e8f0; text-align: center; font-size: 12px; }
+  .dark th, .dark td { border-bottom-color: #334155; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { position: sticky; top: 0; background: #f8fafc; z-index: 1; white-space: nowrap; }
+  .dark thead th { background: #0f172a; color: #f1f5f9; }
+  thead tr.bg-shopee th { background: #7a1224; color: #fff; font-size: 12px; letter-spacing: 0.02em; cursor: pointer; user-select: none; }
+  thead tr.bg-shopee th:hover { background: #9c2436; }
+  thead tr.bg-shopee th .sort-icon { font-size: 9px; margin-left: 4px; opacity: 0.6; }
+  thead tr.bg-shopee th.sort-active .sort-icon { opacity: 1; }
+  /* ==== SIDEBAR NAVIGASI — disamain persis kayak Inventory Control (tema minimalis hitam-putih) ==== */
+  :root {
+    --tw-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+      "Segoe UI Symbol", "Noto Color Emoji";
+    --bg-sidebar: #000000;
+    --border-sidebar: #262626;
+    --text-sidebar: #ffffff;
+    --text-sidebar-muted: #9ca3af;
+    --bg-sidebar-card: #0a0a0a;
+  }
+  .hamburger-btn {
+    position: fixed; top: 16px; left: 16px; z-index: 120;
+    width: 40px; height: 40px; border-radius: 8px;
+    background: var(--bg-sidebar); color: #fff; border: 1px solid var(--border-sidebar);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    font-family: var(--tw-sans);
+  }
+  .hamburger-btn:hover { background: #171717; }
+  .sidebar-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(2px); z-index: 150; display: none;
+  }
+  .sidebar-backdrop.open { display: block; }
+  .app-sidebar {
+    position: fixed; top: 0; left: 0; height: 100%; width: 300px;
+    background-color: var(--bg-sidebar); border-right: 1px solid var(--border-sidebar);
+    display: flex; flex-direction: column; justify-content: space-between;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(-100%); z-index: 200; box-shadow: 0 0 30px rgba(0,0,0,0.25);
+    font-family: var(--tw-sans);
+  }
+  .app-sidebar.open { transform: translateX(0); }
+  .app-sidebar-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; background: var(--bg-sidebar-card);
+    border-bottom: 1px solid var(--border-sidebar); flex-shrink: 0;
+  }
+  .app-sidebar-header-inner { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .app-sidebar-icon-box {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25);
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .app-sidebar-title-group { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .app-sidebar-title { color: #fff; font-weight: 700; font-size: 14px; letter-spacing: 0.3px; text-transform: uppercase; line-height: 1.3; }
+  .app-sidebar-subtitle { color: var(--text-sidebar-muted); font-weight: 500; font-size: 12.5px; line-height: 1.3; }
+  .app-sidebar-header button { background: transparent; border: none; color: #9ca3af; font-size: 16px; cursor: pointer; padding: 4px 8px; }
+  .app-sidebar-header button:hover { color: #fff; }
+  .app-sidebar-body { padding: 16px 12px; overflow-y: auto; flex-grow: 1; }
+  .app-sidebar-group-label {
+    font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px;
+    color: var(--text-sidebar-muted); margin: 16px 4px 9px; padding: 0 4px;
+  }
+  .app-sidebar-group-label:first-child { margin-top: 0; }
+  .app-sidebar-group-label.collapsible {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none; border-radius: 6px; padding: 6px 4px;
+  }
+  .app-sidebar-group-label.collapsible:hover { background: rgba(255,255,255,0.06); color: #d4d4d4; }
+  .app-sidebar-group-label.collapsible .chevron { transition: transform 0.2s ease; font-size: 12px; }
+  .app-sidebar-group-label.collapsible.collapsed .chevron { transform: rotate(-90deg); }
+  .app-sidebar-group {
+    overflow: hidden; max-height: 500px; transition: max-height 0.25s ease;
+  }
+  .app-sidebar-group.collapsed { max-height: 0; }
+  .app-sidebar-link {
+    display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 7px;
+    color: var(--text-sidebar); font-weight: 600; font-size: 15px; text-decoration: none; margin-bottom: 5px;
+    cursor: pointer; border: none; width: 100%; background: transparent; text-align: left;
+    font-family: var(--tw-sans);
+  }
+  .app-sidebar-link:hover { background: rgba(255,255,255,0.08); }
+  .app-sidebar-link.active { background: #ffffff; color: #000000; font-weight: 700; }
+  .app-sidebar-footer { border-top: 1px solid var(--border-sidebar); padding: 15px; }
+  .app-sidebar-footer button {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    padding: 11px; border: 1px solid var(--border-sidebar); background: #111111;
+    color: #ffffff; border-radius: 7px; cursor: pointer; font-weight: 600; font-size: 15px;
+    font-family: var(--tw-sans);
+  }
+  .app-sidebar-footer button:hover { background: #1f1f1f; }
+
+  /* ===== Language Switcher & Saran/Masukan (di atas Logout) ===== */
+  .app-sidebar-lang { margin-bottom: 10px; }
+  .app-sidebar-lang label {
+    display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--text-sidebar-muted); text-transform: uppercase; margin-bottom: 6px;
+  }
+  .app-sidebar-lang select {
+    width: 100%; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--border-sidebar);
+    background: var(--bg-sidebar-card); color: var(--text-sidebar); font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: var(--tw-sans);
+  }
+  .app-sidebar-lang select:focus { outline: none; border-color: #f59e0b; }
+  .app-sidebar-feedback-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    margin-bottom: 10px; padding: 11px; border: 1px solid rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.12); color: #f59e0b; border-radius: 7px; cursor: pointer;
+    font-weight: 600; font-size: 15px; font-family: var(--tw-sans);
+  }
+  .app-sidebar-feedback-btn:hover { background: rgba(245, 158, 11, 0.22); }
+  .fb-board-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px);
+    z-index: 300; display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  .fb-board-backdrop.open { display: flex; }
+  .fb-board-card {
+    width: 100%; max-width: 420px; max-height: 80vh; background: var(--bg-sidebar);
+    border: 1px solid var(--border-sidebar); border-radius: 12px; display: flex; flex-direction: column;
+    overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.4); font-family: var(--tw-sans);
+  }
+  .fb-board-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; background: var(--bg-sidebar-card); border-bottom: 1px solid var(--border-sidebar); flex-shrink: 0;
+  }
+  .fb-board-header h3 { margin: 0; font-size: 15px; font-weight: 700; color: #fff; }
+  .fb-board-header button { background: transparent; border: none; color: #9ca3af; font-size: 18px; cursor: pointer; padding: 2px 6px; }
+  .fb-board-header button:hover { color: #fff; }
+  .fb-board-form { padding: 12px 16px; border-bottom: 1px solid var(--border-sidebar); flex-shrink: 0; }
+  .fb-board-form textarea {
+    width: 100%; min-height: 70px; resize: vertical; border-radius: 8px; border: 1px solid var(--border-sidebar);
+    background: var(--bg-sidebar-card); color: #fff; padding: 10px 12px; font-size: 13px; font-family: var(--tw-sans);
+  }
+  .fb-board-form textarea:focus { outline: none; border-color: #f59e0b; }
+  .fb-board-form-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .fb-board-submit-btn {
+    padding: 8px 18px; border: none; border-radius: 7px; background: #f59e0b; color: #000;
+    font-weight: 700; font-size: 13px; cursor: pointer; font-family: var(--tw-sans);
+  }
+  .fb-board-submit-btn:hover { background: #fbbf24; }
+  .fb-board-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .fb-board-list { overflow-y: auto; flex-grow: 1; padding: 8px 0; }
+  .fb-board-item { padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .fb-board-item-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .fb-board-item-user { font-size: 11.5px; font-weight: 700; color: #f59e0b; }
+  .fb-board-item-time { font-size: 10px; color: var(--text-sidebar-muted); flex-shrink: 0; }
+  .fb-board-item-msg { font-size: 13px; color: #e5e5e5; line-height: 1.5; white-space: pre-wrap; word-break: break-word; margin: 0; }
+  .fb-board-empty { padding: 30px 16px; text-align: center; color: var(--text-sidebar-muted); font-size: 12.5px; }
+
+  #pbDetailModal {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+  }
+  #pbDetailModal.active {
+    opacity: 1;
+    visibility: visible;
+  }
+  #pbDetailModal .modal-card {
+    transform: scale(0.9) translateY(-10px);
+    transition: transform 0.25s ease;
+  }
+  #pbDetailModal.active .modal-card {
+    transform: scale(1) translateY(0);
+  }
+
+  /* Styling khusus Print-Friendly View */
+  @media print {
+    body { background: white !important; color: black !important; overflow: visible !important; height: auto !important; }
+    #appSidebar, #appSidebarBackdrop, header, .no-print, button, input, select { display: none !important; }
+    main { padding: 0 !important; overflow: visible !important; }
+    .bg-white, .dark .bg-slate-800 { background: white !important; border: none !important; shadow: none !important; color: black !important; }
+    table { width: 100% !important; border-collapse: collapse !important; }
+    th, td { border: 1px solid #000 !important; font-size: 10pt !important; color: black !important; }
+    thead tr.bg-shopee th { background: #eee !important; color: #000 !important; }
+    .print-title { display: block !important; margin-bottom: 10px; }
+  }
+  .print-title { display: none; }
+
+    /* Toast notifikasi in-app (ganti alert() bawaan browser) */
+    .toast-stack {
+      position: fixed; top: 16px; right: 16px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 10px; max-width: 340px;
+    }
+    .toast-item {
+      background: #000000; color: #ffffff; border-radius: 8px; padding: 12px 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3); display: flex; align-items: flex-start; gap: 10px;
+      font-size: 12.5px; font-weight: 600; line-height: 1.5; white-space: pre-line;
+      animation: toast-in 0.2s ease-out; border: 1px solid #262626;
+    }
+    .toast-item.ok { border-left: 4px solid #22c55e; }
+    .toast-item.err { border-left: 4px solid #ef4444; }
+    .toast-item.info { border-left: 4px solid #9ca3af; }
+    .toast-icon { flex-shrink: 0; font-size: 14px; line-height: 1.5; }
+    .toast-msg { flex: 1; }
+    .toast-close { background: transparent; border: none; color: #9ca3af; cursor: pointer; font-size: 14px; padding: 0 0 0 4px; flex-shrink: 0; }
+    .toast-close:hover { color: #fff; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 h-screen flex flex-col overflow-hidden transition-colors duration-200" id="pbContent">
+<script>window.__PAGE_TAB = "performance-bagger";</script>
+<script src="auth-guard.js"></script>
+<div class="toast-stack" id="toastStack"></div>
+<script>
+  // Toast notifikasi in-app, pengganti alert() bawaan browser. type: 'ok' | 'err' | 'info'
+  function showToast(message, type, durationMs) {
+    type = type || 'info';
+    var icon = type === 'ok' ? '✅' : (type === 'err' ? '⛔' : 'ℹ️');
+    var stack = document.getElementById('toastStack');
+    if (!stack) { console.warn('[toast]', message); return; }
+    var el = document.createElement('div');
+    el.className = 'toast-item ' + type;
+    el.innerHTML = '<span class="toast-icon">' + icon + '</span>' +
+      '<span class="toast-msg">' + escapeHtml(message) + '</span>' +
+      '<button class="toast-close" onclick="this.parentElement.remove()">✕</button>';
+    stack.appendChild(el);
+    setTimeout(function () {
+      if (el.parentElement) el.remove();
+    }, durationMs || (type === 'err' ? 7000 : 4500));
+  }
+  function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+</script>
+
+
+<!-- PRINT TITLE -->
+<div class="print-title text-center p-2">
+  <h1 class="text-xl font-bold uppercase">Laporan Performance Bagger DC Palangka Raya</h1>
+  <p class="text-xs">Dicetak Pada: <span id="printTimestamp"></span></p>
+</div>
+
+<!-- ==== SIDEBAR NAVIGASI ANTAR MODUL ==== -->
+<div class="sidebar-backdrop" id="appSidebarBackdrop" onclick="toggleAppSidebar()"></div>
+<nav class="app-sidebar" id="appSidebar">
+  <div>
+    <div class="app-sidebar-header">
+      <div class="app-sidebar-header-inner">
+        <div class="app-sidebar-icon-box">🏆</div>
+        <div class="app-sidebar-title-group">
+          <span class="app-sidebar-title">Palangka Raya DC</span>
+          <span class="app-sidebar-subtitle">Performance Bagger</span>
+        </div>
+      </div>
+      <button onclick="toggleAppSidebar()">✕</button>
+    </div>
+    <div class="app-sidebar-body">
+      <div class="app-sidebar-group-label collapsible" data-group="Productivity" onclick="toggleSidebarGroup('Productivity')">
+        <span>Productivity</span><span class="chevron">▾</span>
+      </div>
+      <div class="app-sidebar-group" data-group-body="Productivity">
+        <a href="rest-time.html" id="navToRestTime" class="app-sidebar-link">⏳ Rest Time Monitoring</a>
+        <a href="performance-bagger.html" class="app-sidebar-link active">🏆 Performance Bagger</a>
+      </div>
+
+      <div class="app-sidebar-group-label collapsible" data-group="Inbound" onclick="toggleSidebarGroup('Inbound')">
+        <span>Inbound</span><span class="chevron">▾</span>
+      </div>
+      <div class="app-sidebar-group" data-group-body="Inbound">
+        <a href="inbound.html" id="navToInbound" class="app-sidebar-link">🚚 LH Tracking &amp; Forecast MP</a>
+      </div>
+
+      <div class="app-sidebar-group-label collapsible" data-group="OutboundMonitoring" onclick="toggleSidebarGroup('OutboundMonitoring')">
+        <span>Outbound Monitoring</span><span class="chevron">▾</span>
+      </div>
+      <div class="app-sidebar-group" data-group-body="OutboundMonitoring">
+        <a href="outbound.html" id="navToOutboundAging" class="app-sidebar-link">📦 Aging &amp; Packer Backlog</a>
+        <a href="outbound.html#occupancy" id="navToOutboundOccupancy" class="app-sidebar-link">🏭 Occupancy &amp; Shift</a>
+      </div>
+
+      <div class="app-sidebar-group-label collapsible" data-group="SOC" onclick="toggleSidebarGroup('SOC')">
+        <span>Inventory Control</span><span class="chevron">▾</span>
+      </div>
+      <div class="app-sidebar-group" data-group-body="SOC">
+        <a href="inventory-control.html" id="navToInventoryControl" class="app-sidebar-link">🗃️ Inventory Control</a>
+      </div>
+    </div>
+  </div>
+  <div class="app-sidebar-footer">
+    <div class="app-sidebar-lang">
+      <label for="appLangSelect">🌐 <span data-i18n="lang.label">Bahasa</span></label>
+      <select id="appLangSelect" onchange="setAppLanguage(this.value)">
+        <option value="id">🇮🇩 Indonesia</option>
+        <option value="en">🇬🇧 English</option>
+        <option value="ja">🇯🇵 日本語</option>
+        <option value="zh">🇨🇳 中文</option>
+      </select>
+    </div>
+    <button class="app-sidebar-feedback-btn" onclick="openFeedbackBoard()">💬 <span data-i18n="feedback.title">Saran &amp; Masukan</span></button>
+    <button onclick="logoutApp()">🚪 <span data-i18n="logout.btn">Logout</span></button>
+  </div>
+</nav>
+
+<div class="fb-board-backdrop" id="fbBoardBackdrop" onclick="if(event.target===this) closeFeedbackBoard()">
+  <div class="fb-board-card">
+    <div class="fb-board-header">
+      <h3>💬 <span data-i18n="feedback.title">Saran &amp; Masukan</span></h3>
+      <button onclick="closeFeedbackBoard()" aria-label="Tutup">✕</button>
+    </div>
+    <div class="fb-board-form">
+      <textarea id="fbBoardInput" maxlength="500" placeholder="Tulis saran, masukan, atau curhatan kamu di sini..." data-i18n-placeholder="feedback.placeholder"></textarea>
+      <div class="fb-board-form-footer">
+        <button class="fb-board-submit-btn" id="fbBoardSubmitBtn" onclick="submitFeedback()" data-i18n="feedback.submit">Kirim</button>
+      </div>
+    </div>
+    <div class="fb-board-list" id="fbBoardList">
+      <div class="fb-board-empty" data-i18n="feedback.loading">Memuat...</div>
+    </div>
+  </div>
+</div>
+
+<!-- TOP HEADER -->
+<header class="bg-gradient-to-r from-shopee-dark via-shopee to-shopee-light text-white shadow-lg flex-shrink-0 z-30">
+  <div class="max-w-full mx-auto px-3 py-2 flex justify-between items-center gap-2 flex-wrap">
+    <div class="flex items-center space-x-3">
+      <button onclick="toggleAppSidebar()" class="hover:bg-white/10 p-1.5 rounded-lg transition text-white focus:outline-none border border-white/10" title="Buka Menu">
+        <i class="fa-solid fa-bars text-lg"></i>
+      </button>
+      <div class="p-1.5 bg-white/10 rounded-lg backdrop-blur-sm border border-white/15">
+        <i class="fa-solid fa-trophy text-xl text-white"></i>
+      </div>
+      <div>
+        <h1 data-i18n="pb.header.title" class="text-sm md:text-base font-black tracking-tight uppercase leading-none">Performance Bagger</h1>
+        <p data-i18n="pb.header.subtitle" class="text-[9px] text-amber-100 font-medium opacity-90 mt-0.5">Monitoring Produktivitas Packer / Bagger Harian</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button onclick="toggleDarkMode()" class="bg-black/25 hover:bg-black/40 p-1.5 px-2.5 rounded-lg border border-white/20 text-white text-xs transition flex items-center gap-1.5" title="Ganti Mode Gelap/Terang">
+        <i id="darkModeIcon" class="fa-solid fa-moon text-amber-300"></i>
+        <span data-i18n="pb.header.mode" class="hidden md:inline font-semibold">Mode</span>
+      </button>
+
+      <button onclick="triggerPrintView()" class="bg-black/25 hover:bg-black/40 p-1.5 px-2.5 rounded-lg border border-white/20 text-white text-xs transition flex items-center gap-1.5" title="Cetak Laporan">
+        <i class="fa-solid fa-print"></i>
+        <span data-i18n="pb.header.print" class="hidden md:inline font-semibold">Cetak</span>
+      </button>
+
+      <div class="flex items-center gap-1.5 bg-black/25 p-1.5 rounded-lg border border-white/20 flex-wrap">
+        <input type="date" id="pbImportDate" class="bg-slate-800 text-white text-[11px] rounded px-2 py-1 border border-white/10 focus:outline-none" title="Pilih Tanggal Import PDVT" />
+        
+        <!-- IMPORT PDVT -->
+        <label for="pbExcelFile" class="cursor-pointer bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold px-2.5 py-1 rounded text-[11px] transition shadow-sm whitespace-nowrap" title="Import Data Packer PDVT">
+          <i class="fa-solid fa-file-import"></i> <span data-i18n="pb.header.importPdvt">Import PDVT</span>
+        </label>
+        <input type="file" id="pbExcelFile" accept=".xlsx, .xls, .csv" class="hidden" />
+
+        <!-- IMPORT ROSTER (NEW) -->
+        <label for="pbRosterFile" class="cursor-pointer bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold px-2.5 py-1 rounded text-[11px] transition shadow-sm whitespace-nowrap" title="Import Data Roster (Auto-Fill Status)">
+          <i class="fa-solid fa-calendar-days"></i> <span data-i18n="pb.header.importRoster">Import Roster</span>
+        </label>
+        <input type="file" id="pbRosterFile" accept=".xlsx, .xls, .csv" class="hidden" />
+
+        <span id="pbFileName" data-i18n="pb.header.noImport" class="text-[10px] text-amber-100 font-mono truncate max-w-[140px]">Belum ada import</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<main class="flex-1 p-3 flex flex-col gap-3 overflow-y-auto custom-scrollbar">
+
+  <!-- Hall of Fame -->
+  <div class="bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-transparent border border-amber-500/30 rounded-xl p-3 md:p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 dark:bg-slate-800/80">
+    <div class="flex items-center gap-3 shrink-0">
+      <div class="p-3 bg-amber-500 text-slate-950 rounded-xl font-black shadow-md">
+        <i class="fa-solid fa-crown text-xl"></i>
+      </div>
+      <div>
+        <h3 data-i18n="pb.hof.title" class="font-black text-sm uppercase tracking-wider text-amber-600 dark:text-amber-400">Hall of Fame - Top Performers</h3>
+        <p data-i18n="pb.hof.subtitle" class="text-xs text-slate-500 dark:text-slate-400">Packer dengan achievement tertinggi bulan ini</p>
+      </div>
+    </div>
+    <div id="pbLeaderboard" class="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 justify-start md:justify-end">
+      <div data-i18n="pb.hof.loading" class="text-xs text-slate-400 italic">Memuat Top Bagger...</div>
+    </div>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-2 flex-shrink-0">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
+      <span data-i18n="pb.summary.month" class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Bulan Berjalan</span>
+      <p id="pbSummaryMonth" class="hidden">-</p>
+      <input type="month" id="pbMonthPicker" onchange="loadPbMonth(this.value)" class="mt-1 w-full bg-transparent border border-slate-200 dark:border-slate-600 rounded-md text-base font-black text-slate-800 dark:text-slate-100 px-1.5 py-1 focus:outline-none focus:border-shopee" />
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
+      <span data-i18n="pb.summary.staff" class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Operator Terdata</span>
+      <p id="pbSummaryStaff" class="text-sm font-black text-slate-800 dark:text-slate-100 mt-0.5">0</p>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
+      <span data-i18n="pb.summary.rate" class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Achievement Rate</span>
+      <p id="pbSummaryRate" class="text-sm font-black text-emerald-600 mt-0.5">0%</p>
+      <span id="pbSummaryRateDetail" class="text-[9px] text-slate-400"></span>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
+      <span data-i18n="pb.summary.top" class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Top Performer</span>
+      <p id="pbSummaryTop" class="text-xs font-extrabold text-shopee dark:text-rose-400 mt-0.5 leading-snug">-</p>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 shadow-sm col-span-2 md:col-span-1 flex flex-col justify-center">
+      <span data-i18n="pb.summary.agency" class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1.5">Agency Breakdown</span>
+      <div id="agencyBreakdownList" class="space-y-1.5 w-full"></div>
+    </div>
+  </div>
+
+  <!-- FILTER & ACTION BAR -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 flex flex-wrap gap-2 items-center flex-shrink-0 shadow-sm justify-between">
+    <div class="flex flex-wrap gap-2 items-center flex-1">
+      <div class="relative flex-1 min-w-[160px]">
+        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[11px]"></i>
+        <input id="pbSearch" oninput="renderPbTable()" data-i18n-placeholder="pb.filter.searchPlaceholder" placeholder="Cari nama / OpsID..." class="w-full pl-7 pr-2 py-1.5 border border-slate-200 dark:border-slate-700 bg-transparent rounded-lg text-[12px] focus:outline-none focus:border-shopee" />
+      </div>
+      <select id="pbAgencyFilter" onchange="renderPbTable()" class="border border-slate-200 dark:border-slate-700 bg-transparent rounded-lg px-2 py-1.5 text-[12px] focus:outline-none focus:border-shopee dark:text-slate-200">
+        <option value="ALL" data-i18n="pb.filter.allAgency" class="dark:bg-slate-800">Semua Agency</option>
+        <option value="MYROBIN" class="dark:bg-slate-800">MYROBIN</option>
+        <option value="UGBM" class="dark:bg-slate-800">UGBM</option>
+        <option value="IPI" class="dark:bg-slate-800">IPI</option>
+      </select>
+      <select id="pbStatusFilter" onchange="renderPbTable()" class="border border-slate-200 dark:border-slate-700 bg-transparent rounded-lg px-2 py-1.5 text-[12px] focus:outline-none focus:border-shopee dark:text-slate-200">
+        <option value="ALL" data-i18n="pb.filter.allStatus" class="dark:bg-slate-800">Semua Status</option>
+        <option value="Dedicated Operator" data-i18n="pb.filter.statusDedicated" class="dark:bg-slate-800">Dedicated Operator</option>
+        <option value="DW Reguler Pria" data-i18n="pb.filter.statusRegPria" class="dark:bg-slate-800">DW Reguler Pria</option>
+        <option value="DW Reguler Wanita" data-i18n="pb.filter.statusRegWanita" class="dark:bg-slate-800">DW Reguler Wanita</option>
+        <option value="DW On Call" data-i18n="pb.filter.statusOnCall" class="dark:bg-slate-800">DW On Call</option>
+      </select>
+
+      <button id="btnD1ViewFilter" onclick="toggleD1ViewFilter()" class="bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 text-indigo-800 dark:bg-indigo-950/60 dark:border-indigo-800 dark:text-indigo-300 font-bold px-2.5 py-1.5 rounded-lg text-[11px] transition flex items-center gap-1.5">
+        <i class="fa-solid fa-calendar-check text-indigo-600 dark:text-indigo-400"></i>
+        <span id="lblD1Filter" data-i18n="pb.filter.quickViewD1">Quick View D+1</span>
+      </button>
+
+      <button id="btnRedFlagFilter" onclick="toggleRedFlagFilter()" class="bg-rose-100 hover:bg-rose-200 border border-rose-300 text-rose-700 dark:bg-rose-950/60 dark:border-rose-800 dark:text-rose-300 font-bold px-2.5 py-1.5 rounded-lg text-[11px] transition flex items-center gap-1.5">
+        <i class="fa-solid fa-triangle-exclamation text-rose-600 dark:text-rose-400"></i>
+        <span data-i18n="pb.filter.redFlag">Needs Coaching / Red Flag</span>
+      </button>
+    </div>
+
+    <div class="flex items-center gap-1.5 flex-wrap">
+      <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 p-1 rounded-lg border border-slate-200 dark:border-slate-600">
+        <span data-i18n="pb.filter.rangeExport" class="text-[10px] text-slate-500 dark:text-slate-300 pl-1 font-semibold" title="Range ini cuma dipakai buat Excel/PDF export, bukan buat pindah bulan tabel utama">Range Export:</span>
+        <input type="date" id="exportStartDate" class="bg-transparent text-[10px] border-none focus:outline-none dark:text-white" />
+        <span class="text-[10px] text-slate-400">-</span>
+        <input type="date" id="exportEndDate" class="bg-transparent text-[10px] border-none focus:outline-none dark:text-white" />
+      </div>
+      <button onclick="setQuickDateRange('d1')" data-i18n="pb.filter.quickD1Btn" class="bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 font-semibold text-[10px] px-2 py-1.5 rounded-lg transition" title="Set range filter ke Kemarin (D+1 View)">
+        Quick D+1
+      </button>
+      <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 shadow-sm">
+        <i class="fa-solid fa-file-excel"></i> <span data-i18n="pb.export.excel">Excel</span>
+      </button>
+      <button onclick="exportToPDF()" class="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-[11px] px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 shadow-sm">
+        <i class="fa-solid fa-file-pdf"></i> <span data-i18n="pb.export.pdf">PDF</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
+    <div class="overflow-auto custom-scrollbar flex-1">
+      <table class="dynamic-table">
+        <thead>
+          <tr class="bg-shopee text-white">
+            <th class="w-12" data-i18n="pb.table.rank">Rank</th>
+            <th onclick="sortPbTable('name')" data-col="name"><span data-i18n="pb.table.name">Nama</span> <i class="fa-solid fa-sort sort-icon"></i></th>
+            <th onclick="sortPbTable('opsId')" data-col="opsId"><span data-i18n="pb.table.opsId">OpsID</span> <i class="fa-solid fa-sort sort-icon"></i></th>
+            <th onclick="sortPbTable('agency')" data-col="agency"><span data-i18n="pb.table.agency">Agency</span> <i class="fa-solid fa-sort sort-icon"></i></th>
+            <th onclick="sortPbTable('status')" data-col="status"><span data-i18n="pb.table.status">Status</span> <i class="fa-solid fa-sort sort-icon"></i></th>
+            <th onclick="sortPbTable('total')" data-col="total" id="thTotalCol"><span data-i18n="pb.table.totalTarget">Total Packed / Target</span> <i class="fa-solid fa-sort sort-icon"></i></th>
+            <th onclick="sortPbTable('avg')" data-col="avg"><span data-i18n="pb.table.avgDay">Rata-rata/Hari</span> <i class="fa-solid fa-sort sort-icon"></i></th>
+            <th data-i18n="pb.table.growthTrend">Growth & Trend</th>
+          </tr>
+        </thead>
+        <tbody id="pbTableBody">
+          <tr><td colspan="8" class="text-center py-6 text-slate-400" data-i18n="pb.table.loading">Memuat data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- DETAIL POPUP MODAL -->
+<div id="pbDetailModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3" role="dialog" aria-modal="true">
+  <div class="modal-card bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border dark:border-slate-700">
+    <div class="bg-gradient-to-r from-shopee-dark via-shopee to-shopee-light text-white p-3 flex justify-between items-start flex-shrink-0">
+      <div>
+        <div class="flex items-center gap-2">
+          <p id="pbDetailName" class="font-extrabold text-sm">-</p>
+          <span id="pbDetailStreak" class="hidden text-[10px] bg-rose-500 text-white font-bold px-2 py-0.5 rounded-full shadow"></span>
+        </div>
+        <p id="pbDetailMeta" class="text-[10px] text-amber-100 mt-0.5">-</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <!-- TOMBOL CETAK PERFORMANCE SLIP PDF -->
+        <button onclick="downloadIndividualSlipPDF()" class="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold px-2.5 py-1 rounded text-[11px] shadow transition flex items-center gap-1" title="Cetak Performance Slip PDF">
+          <i class="fa-solid fa-file-invoice"></i> Rapor PDF
+        </button>
+        <button id="pbDetailCloseBtn" onclick="closePbDetail()" class="text-white/80 hover:text-white p-1 focus:outline-none focus:ring-2 focus:ring-white rounded-lg transition" aria-label="Close modal">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal Content: Visual Chart & Table -->
+    <div class="p-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex-shrink-0">
+      <div class="h-36 w-full relative">
+        <canvas id="detailDailyChart"></canvas>
+      </div>
+    </div>
+
+    <div class="overflow-y-auto custom-scrollbar flex-1">
+      <table class="dynamic-table">
+        <thead>
+          <tr class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200">
+            <th>Tanggal</th>
+            <th>Keterangan / Status</th>
+            <th>Overall Packed/Days</th>
+            <th>Average</th>
+            <th>Achievement</th>
+          </tr>
+        </thead>
+        <tbody id="pbDetailBody"></tbody>
+      </table>
+    </div>
+    <div class="bg-slate-50 dark:bg-slate-900/50 p-2.5 border-t border-slate-200 dark:border-slate-700 flex-shrink-0 flex justify-between items-center">
+      <span class="text-[10px] font-bold text-slate-500 uppercase">Total Bulan Ini</span>
+      <span id="pbDetailTotal" class="font-mono font-extrabold text-shopee dark:text-rose-400 text-sm">0</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==== UI HELPER FUNCTIONS ====
+// Open/Hide grup nav (Productivity / Inbound / Outbound Monitoring). Sengaja GAK diinget
+// lewat localStorage — tiap buka halaman / pindah tab, semua grup default Hide, user
+// wajib Open manual biar Sidebar-nya tetep rapi.
+function toggleSidebarGroup(group) {
+  const label = document.querySelector('.app-sidebar-group-label[data-group="' + group + '"]');
+  const body = document.querySelector('.app-sidebar-group[data-group-body="' + group + '"]');
+  if (!label || !body) return;
+  const collapsed = label.classList.toggle('collapsed');
+  body.classList.toggle('collapsed', collapsed);
+}
+
+function setSidebarGroupCollapsed(group, collapsed) {
+  const label = document.querySelector('.app-sidebar-group-label[data-group="' + group + '"]');
+  const body = document.querySelector('.app-sidebar-group[data-group-body="' + group + '"]');
+  if (!label || !body) return;
+  label.classList.toggle('collapsed', collapsed);
+  body.classList.toggle('collapsed', collapsed);
+}
+
+const SIDEBAR_NAV_GROUPS = ['Productivity', 'Inbound', 'OutboundMonitoring', 'SOC'];
+
+function collapseAllSidebarGroups() {
+  SIDEBAR_NAV_GROUPS.forEach(function (group) { setSidebarGroupCollapsed(group, true); });
+}
+collapseAllSidebarGroups();
+
+function toggleAppSidebar() {
+  document.getElementById('appSidebar').classList.toggle('open');
+  document.getElementById('appSidebarBackdrop').classList.toggle('open');
+}
+
+function triggerPrintView() {
+  const printTs = document.getElementById('printTimestamp');
+  if (printTs) printTs.innerText = new Date().toLocaleString('id-ID');
+  window.print();
+}
+
+function logoutApp() {
+  if (window.firebase && firebase.auth) {
+    firebase.auth().signOut().then(() => {
+      window.location.href = 'login.html';
+    }).catch(() => {
+      window.location.href = 'login.html';
+    });
+  } else {
+    window.location.href = 'login.html';
+  }
+}
+
+// ==== ROSTER STAFF ====
+const STAFF_ROSTER = [
+  // -- Dedicated Operator --
+  { name: "Muhammad Arifin 2", opsId: "Ops854217", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Muhammad Ramadani", opsId: "Ops767061", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Rivqy Akbar Riswana", opsId: "Ops664556", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Irvansyah", opsId: "Ops1089244", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Irvan Arifai", opsId: "Ops1089247", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "RAHMAN", opsId: "Ops1868559", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Ahmad Mujib", opsId: "Ops1868562", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Egianor", opsId: "Ops767000", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Kristian 2", opsId: "Ops854200", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "NOURHUSEINI", opsId: "Ops1868566", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Sigit Royan Arifin", opsId: "Ops1868565", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Oki Rawana", opsId: "Ops1868561", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Rizky Setiawan", opsId: "Ops1868560", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Obed Yordan Grace Saputra", opsId: "Ops434094", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Amrollah", opsId: "Ops664552", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Sendy Delfrid Nugraha", opsId: "Ops767430", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Amirol Cahya Alfian", opsId: "Ops654983", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Debie Dante Ugul", opsId: "Ops664560", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Muhammad Ali 3", opsId: "Ops854235", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "M.ADITIA RIZKY", opsId: "Ops1865262", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Doni Sukma Irawan", opsId: "Ops1865261", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Ahmad Awalluddin", opsId: "Ops1865264", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Ahmad Irfan", opsId: "Ops1865259", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Muhammad Putra Arifin", opsId: "Ops1867071", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Rakhmadani", opsId: "Ops1089309", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Ilham Setiawan", opsId: "Ops318889", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Ahmad Mustafa", opsId: "Ops1867074", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Akhmad Fikri", opsId: "Ops767468", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Helmy Akbar", opsId: "Ops615716", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Bendi Herawan", opsId: "Ops1867070", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Dedi Setiawan 6", opsId: "Ops694308", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Nanda Miko Priambada", opsId: "Ops1867073", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Meici Ariadi", opsId: "Ops1867072", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Andi Alfian Fadillah", opsId: "Ops1089305", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Alpianor", opsId: "Ops434089", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Muhammad Rizky 8", opsId: "Ops616037", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Muhammad Dali 2", opsId: "Ops853924", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Ahmad Ananda Nurwansyah", opsId: "Ops1089276", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Deddy Wahyudi", opsId: "Ops1858809", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Ginanjar Ady Yoga", opsId: "Ops1872556", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "Decky Norhadi", opsId: "Ops1872557", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "Wardi Saputra", opsId: "Ops1872559", agency: "UGBM", status: "Dedicated Operator" },
+  { name: "DEFRI ANDREADI", opsId: "Ops1872555", agency: "MYROBIN", status: "Dedicated Operator" },
+  { name: "AHMAD MUTALIB", opsId: "Ops1872558", agency: "IPI", status: "Dedicated Operator" },
+
+  // -- DW Reguler Pria --
+  { name: "MUHAMMAD NAZRIL ILHAM", opsId: "Ops1935449", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "AKMAL LUNABIL", opsId: "Ops1472837", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "DANO ALAM", opsId: "Ops1455291", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "MUHTADI", opsId: "Ops1566700", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "RESKY JULIAN PRASETYA", opsId: "Ops1836037", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "NORDIN", opsId: "Ops1955171", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD FIQRI", opsId: "Ops1444429", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "NUR FUADY", opsId: "Ops1972742", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "HAIRUL RASIYD", opsId: "Ops1941249", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "AHMAD HAIKAL", opsId: "Ops1876859", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMAT HANDRI", opsId: "Ops1876858", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "AHMAD GAZALI", opsId: "Ops2036371", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD LEVIARDI", opsId: "Ops1883739", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "ADE IRAWAN", opsId: "Ops1123073", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "BUDI SANTOSO", opsId: "Ops1894719", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "A.BUDIMAN", opsId: "Ops1337674", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "AHMAD HAFI", opsId: "Ops1858260", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD BAHIT", opsId: "Ops1926180", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "ABDUL SALAM", opsId: "Ops889367", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "HARDIMAN", opsId: "Ops1352179", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "RIO ARDIANSYAH", opsId: "Ops1357285", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "IMAM GHAZALI", opsId: "Ops1231724", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD RIVAN", opsId: "Ops1164383", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "Ahmad Al Fatah", opsId: "Ops1899115", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "AKHMAD IBRAHIM", opsId: "Ops1783069", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD THAZIM", opsId: "Ops1809768", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "IQBAL BASTIAN DAPUTRA MANALU", opsId: "Ops1835326", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD ANAS RIYANTO", opsId: "Ops1714824", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD BRYAN SYAHWAL", opsId: "Ops1866196", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "IRPA BUSROL KARIM", opsId: "Ops1856698", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "NUR WIJAYA", opsId: "Ops1861742", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD ALDY RAMADHAN", opsId: "Ops1887650", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "KRISTO VORUS WOGE NDROE", opsId: "Ops1887649", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD SAKRONI", opsId: "Ops1895367", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "WAHYU ALAMSYAH", opsId: "Ops1724253", agency: "UGBM", status: "DW Reguler Pria" },
+  { name: "BAHRANI", opsId: "Ops1897682", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "MUHAMMAD NUR ICHWANTO", opsId: "Ops1956926", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "AURUM", opsId: "Ops1945014", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "Suriansyah", opsId: "Ops970452", agency: "MYROBIN", status: "DW Reguler Pria" },
+  { name: "ALDI SAPUTRA", opsId: "Ops1882883", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "PAULUS THALAWANG WOGE NDORE", opsId: "Ops1956235", agency: "IPI", status: "DW Reguler Pria" },
+  { name: "TRIO PATRAMAN JOSAFAT SIANTURI", opsId: "Ops1733568", agency: "MYROBIN", status: "DW Reguler Pria" },
+
+  // -- DW Reguler Wanita --
+  { name: "YANTI", opsId: "Ops1461807", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "FEBRILIYA ROFIKA SARI", opsId: "Ops1474257", agency: "IPI", status: "DW Reguler Wanita" },
+  { name: "NATALIA SIMAMORA", opsId: "Ops1357681", agency: "UGBM", status: "DW Reguler Wanita" },
+  { name: "DANUM UTAMI SUCI", opsId: "Ops1472842", agency: "UGBM", status: "DW Reguler Wanita" },
+  { name: "HERLINA", opsId: "Ops1863387", agency: "IPI", status: "DW Reguler Wanita" },
+  { name: "NAZWA MAHARANI", opsId: "Ops1594622", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "NOVIA", opsId: "Ops1858261", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "DAHLIA", opsId: "Ops1576272", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "SITI AFRILIYANI BUNSIAN", opsId: "Ops1880350", agency: "UGBM", status: "DW Reguler Wanita" },
+  { name: "CITRA ANASTASYA", opsId: "Ops1880345", agency: "UGBM", status: "DW Reguler Wanita" },
+  { name: "PUTRI NUR HIDAYAH", opsId: "Ops1863389", agency: "IPI", status: "DW Reguler Wanita" },
+  { name: "MARI ERLIAN", opsId: "Ops1835353", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "DINALORENZA", opsId: "Ops1782461", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "SINAWATI", opsId: "Ops1359488", agency: "MYROBIN", status: "DW Reguler Wanita" },
+  { name: "AMELIA", opsId: "Ops1880346", agency: "UGBM", status: "DW Reguler Wanita" }
+];
+
+const ACHIEVEMENT_THRESHOLD = {
+  "Dedicated Operator": 6500,
+  "DW Reguler Pria": 6500,
+  "DW Reguler Wanita": 4500,
+  "DW On Call": 3000
+};
+
+let pbStaffMap = {};
+STAFF_ROSTER.forEach(function (s) { pbStaffMap[s.opsId] = s; });
+
+let fbDb = null;
+const FB_PB_ROOT = "prDcPerformanceBagger";
+let pbMonthlyRecords = {}; 
+let agencyChartInstance = null;
+let detailChartInstance = null;
+let lastFilteredRows = [];
+let redFlagFilterActive = false;
+let d1ViewFilterActive = false;
+let currentDetailOpsId = null;
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function getYesterdayDateStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+
+function currentMonthRange(monthStr) {
+  let y, m;
+  if (monthStr) {
+    const parts = monthStr.split('-');
+    y = parseInt(parts[0], 10);
+    m = parseInt(parts[1], 10);
+  } else {
+    const now = new Date();
+    y = now.getFullYear();
+    m = now.getMonth() + 1;
+  }
+  return {
+    start: y + '-' + pad2(m) + '-01',
+    end: y + '-' + pad2(m) + '-31',
+    monthStr: y + '-' + pad2(m),
+    label: ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"][m - 1] + ' ' + y
+  };
+}
+
+let pbDailyRecordsRef = null;
+
+function loadPbMonth(monthStr) {
+  if (!fbDb) return;
+  const range = currentMonthRange(monthStr);
+  document.getElementById('pbSummaryMonth').innerText = range.label;
+  document.getElementById('pbMonthPicker').value = range.monthStr;
+
+  if (pbDailyRecordsRef) pbDailyRecordsRef.off();
+  pbDailyRecordsRef = fbDb.ref(FB_PB_ROOT + '/dailyRecords').orderByKey().startAt(range.start).endAt(range.end);
+  pbDailyRecordsRef.on('value', function (snapshot) {
+    pbMonthlyRecords = snapshot.val() || {};
+    renderPbTable();
+    if (currentDetailOpsId) openPbDetail(currentDetailOpsId);
+  }, function (err) { console.error('Gagal baca data Performance Bagger:', err); });
+}
+
+function initPbFirebaseSync() {
+  if (fbDb) return;
+  try { fbDb = firebase.database(); } catch (e) { console.error('Gagal connect Firebase Database:', e); return; }
+  const range = currentMonthRange();
+  document.getElementById('pbMonthPicker').value = range.monthStr;
+  loadPbMonth(range.monthStr);
+}
+
+// ==== IMPORT EXCEL HARIAN (PDVT) ====
+function getPbFieldValue(row, possibleKeys) {
+  const rowKeys = Object.keys(row);
+  for (let i = 0; i < possibleKeys.length; i++) {
+    const foundKey = rowKeys.find(function (k) { return k.trim().toLowerCase() === possibleKeys[i].toLowerCase(); });
+    if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) return row[foundKey];
+  }
+  return null;
+}
+
+document.getElementById('pbImportDate').valueAsDate = new Date();
+
+function detectPbDateColumns(sampleRow) {
+  if (!sampleRow) return [];
+  return Object.keys(sampleRow).filter(function (k) { return /^\d{4}-\d{2}-\d{2}$/.test(String(k).trim()); });
+}
+
+function parsePbOpsIdName(userEmail) {
+  const s = String(userEmail || '').trim();
+  const m = s.match(/^\[(.*?)\]\s*(.*)$/);
+  if (!m) return null;
+  const opsId = m[1].trim();
+  if (!opsId) return null;
+  return { opsId: opsId, name: m[2].trim() };
+}
+
+document.getElementById('pbExcelFile').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (evt) {
+    try {
+      const workbook = XLSX.read(new Uint8Array(evt.target.result), { type: 'array', raw: true });
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+      if (!rows || !rows.length) { showToast('File kosong atau format gak kebaca bro.', 'err'); e.target.value = ''; return; }
+
+      const dateCols = detectPbDateColumns(rows[0]);
+      if (dateCols.length) {
+        processPbRawImport(rows, dateCols, file.name);
+      } else {
+        const pickedDate = document.getElementById('pbImportDate').value;
+        if (!pickedDate) {
+          showToast('Pilih tanggal dulu bro sebelum import.', 'info');
+          e.target.value = '';
+          return;
+        }
+        processPbImport(rows, pickedDate, file.name);
+      }
+    } catch (err) {
+      showToast('❌ Gagal baca file PDVT: ' + err.message, 'err');
+    }
+    e.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function processPbRawImport(rows, dateCols, fileName) {
+  const sortedDates = dateCols.slice().sort();
+  const byDate = {};
+  sortedDates.forEach(function (d) { byDate[d] = {}; });
+
+  let matchedOps = 0;
+  let duplicatesFound = 0;
+
+  rows.forEach(function (row) {
+    const parsed = parsePbOpsIdName(getPbFieldValue(row, ['User Email']));
+    if (!parsed) return;
+    
+    matchedOps++;
+    const staff = pbStaffMap[parsed.opsId];
+    sortedDates.forEach(function (d) {
+      const packedRaw = row[d];
+      const packed = parseInt(String(packedRaw).replace(/[^\d-]/g, ''), 10);
+      if (isNaN(packed)) return;
+
+      if (byDate[d][parsed.opsId]) duplicatesFound++;
+
+      byDate[d][parsed.opsId] = {
+        name: staff ? staff.name : (parsed.name || parsed.opsId),
+        agency: staff ? staff.agency : '-',
+        packed: packed
+      };
+    });
+  });
+
+  if (!matchedOps) { showToast('Gak ada baris dengan format [OpsID]Nama di kolom "User Email" bro.', 'err'); return; }
+
+  const rangeLabel = sortedDates[0] + ' s/d ' + sortedDates[sortedDates.length - 1];
+  let confirmMsg = `Terdeteksi raw export mingguan: ${sortedDates.length} tanggal (${rangeLabel}) untuk ${matchedOps} operator.`;
+  if (duplicatesFound > 0) {
+    confirmMsg += `\n\n⚠️ PERINGATAN DEDUPLIKASI: Ditemukan ${duplicatesFound} data ganda (OpsID ganda pada tanggal yang sama). Sistem akan menimpa data lama dengan yang paling baru.`;
+  }
+  confirmMsg += '\n\nLanjut import semua sekaligus?';
+
+  if (!confirm(confirmMsg)) return;
+
+  pushPbRawImportToFirebase(byDate, sortedDates, fileName, matchedOps);
+}
+
+function pushPbRawImportToFirebase(byDate, sortedDates, fileName, opsCount) {
+  if (!fbDb) { showToast('⚠️ Belum terhubung ke database online.', 'info'); return; }
+  const importedAtStr = new Date().toISOString();
+  const importedByStr = window.__authUserEmail || 'unknown';
+  const updates = {};
+  sortedDates.forEach(function (dateStr) {
+    Object.keys(byDate[dateStr]).forEach(function (opsId) {
+      updates[FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/name'] = byDate[dateStr][opsId].name;
+      updates[FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/agency'] = byDate[dateStr][opsId].agency;
+      updates[FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/packed'] = byDate[dateStr][opsId].packed;
+      updates[FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/importedAt'] = importedAtStr;
+      updates[FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/importedBy'] = importedByStr;
+    });
+  });
+  fbDb.ref().update(updates).then(function () {
+    const logKey = fbDb.ref(FB_PB_ROOT + '/importLogs').push().key;
+    return fbDb.ref(FB_PB_ROOT + '/importLogs/' + logKey).set({
+      fileName: fileName,
+      tanggal: sortedDates[0] + ' s/d ' + sortedDates[sortedDates.length - 1] + ' (' + sortedDates.length + ' hari)',
+      rowCount: opsCount,
+      importedAt: importedAtStr, importedBy: importedByStr
+    });
+  }).then(function () {
+    document.getElementById('pbFileName').innerText = fileName + ' → ' + sortedDates.length + ' hari';
+  }).catch(function (err) {
+    showToast('❌ Gagal import ke database online: ' + err.message, 'err');
+  });
+}
+
+function processPbImport(rows, dateStr, fileName) {
+  if (!rows || !rows.length) { showToast('File kosong atau format gak kebaca bro.', 'err'); return; }
+  const records = {};
+  let duplicatesFound = 0;
+
+  rows.forEach(function (row) {
+    const opsId = String(getPbFieldValue(row, ['OpsID', 'Ops Id', 'Ops ID', 'ID Ops']) || '').trim();
+    if (!opsId) return;
+    const name = String(getPbFieldValue(row, ['Staff Name', 'Nama', 'Name']) || '').trim();
+    const agency = String(getPbFieldValue(row, ['Agency', 'Agensi']) || '').trim();
+    const packedRaw = getPbFieldValue(row, ['Total Packed', 'Packed', 'Jumlah Packed', 'Qty Packed']);
+    const packed = parseInt(String(packedRaw).replace(/[^\d-]/g, ''), 10);
+    if (isNaN(packed)) return;
+
+    if (records[opsId]) duplicatesFound++;
+
+    records[opsId] = { name: name || (pbStaffMap[opsId] ? pbStaffMap[opsId].name : opsId), agency: agency || (pbStaffMap[opsId] ? pbStaffMap[opsId].agency : '-'), packed: packed };
+  });
+  const keys = Object.keys(records);
+  if (!keys.length) { showToast('Gak ada baris valid ketemu bro.', 'err'); return; }
+
+  let confirmMsg = `Import ${keys.length} data operator untuk tanggal ${dateStr}?`;
+  if (duplicatesFound > 0) {
+    confirmMsg += `\n\n⚠️ DEDUP GUARD: Ada ${duplicatesFound} OpsID ganda dalam file. Data duplikat akan dibersihkan otomatis.`;
+  }
+
+  if (!confirm(confirmMsg)) return;
+  pushPbImportToFirebase(records, dateStr, fileName, keys.length);
+}
+
+function pushPbImportToFirebase(records, dateStr, fileName, rowCount) {
+  if (!fbDb) { showToast('⚠️ Belum terhubung ke database online.', 'info'); return; }
+  const importedAtStr = new Date().toISOString();
+  const importedByStr = window.__authUserEmail || 'unknown';
+  const updates = {};
+  Object.keys(records).forEach(function (opsId) {
+    updates[FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/name'] = records[opsId].name;
+    updates[FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/agency'] = records[opsId].agency;
+    updates[FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/packed'] = records[opsId].packed;
+    updates[FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/importedAt'] = importedAtStr;
+    updates[FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/importedBy'] = importedByStr;
+  });
+  fbDb.ref().update(updates).then(function () {
+    const logKey = fbDb.ref(FB_PB_ROOT + '/importLogs').push().key;
+    return fbDb.ref(FB_PB_ROOT + '/importLogs/' + logKey).set({
+      fileName: fileName, tanggal: dateStr, rowCount: rowCount, importedAt: importedAtStr, importedBy: importedByStr
+    });
+  }).then(function () {
+    document.getElementById('pbFileName').innerText = fileName + ' → ' + dateStr;
+  }).catch(function (err) {
+    showToast('❌ Gagal import ke database online: ' + err.message, 'err');
+  });
+}
+
+// ==== IMPORT ROSTER (NEW) ====
+document.getElementById('pbRosterFile').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (evt) {
+    try {
+      const workbook = XLSX.read(new Uint8Array(evt.target.result), { type: 'array', raw: true });
+      const sheetName = workbook.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+      
+      if (!rows || !rows.length) { showToast('File kosong bro.', 'err'); e.target.value = ''; return; }
+      processRosterImport(rows, file.name);
+    } catch (err) {
+      showToast('❌ Gagal baca file roster: ' + err.message, 'err');
+    }
+    e.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function processRosterImport(rows, fileName) {
+  let headerRowIdx = -1;
+  let dateCols = []; 
+  let opsIdColIdx = -1;
+
+  for (let i = 0; i < Math.min(10, rows.length); i++) {
+    const row = rows[i];
+    if (!row) continue;
+    for (let j = 0; j < row.length; j++) {
+      const val = String(row[j] || '').trim();
+      if (val.toLowerCase() === 'ops id') opsIdColIdx = j;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        dateCols.push({ colIdx: j, dateStr: val });
+      }
+    }
+    if (opsIdColIdx !== -1 && dateCols.length > 0) {
+      headerRowIdx = i;
+      break;
+    }
+  }
+
+  if (headerRowIdx === -1) {
+    showToast('Gak ketemu baris header Ops ID & Tanggal (YYYY-MM-DD) bro di file Roster.', 'err');
+    return;
+  }
+
+  const updates = {};
+  let updatedCount = 0;
+  
+  for (let i = headerRowIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || !row[opsIdColIdx]) continue;
+    const opsId = String(row[opsIdColIdx]).trim();
+    
+    const staff = pbStaffMap[opsId];
+    if (!staff) continue;
+
+    dateCols.forEach(function(dc) {
+      const rosterVal = String(row[dc.colIdx] || '').trim();
+      if (!rosterVal) return;
+
+      let mappedStatus = null;
+      const v = rosterVal.toLowerCase();
+      if (v === 'rd' || v === 'rest day') mappedStatus = 'Rest Day';
+      else if (v.includes('leave') || v.includes('cuti')) mappedStatus = 'Cuti';
+      else if (v === 'nr' || v.includes('not rostered')) mappedStatus = 'Off Duty';
+      else if (v.includes('sick') || v.includes('sakit') || v.includes('mc')) mappedStatus = 'Sakit';
+      else if (v.includes('izin')) mappedStatus = 'Izin';
+
+      if (!mappedStatus) return;
+
+      const currentDayData = pbMonthlyRecords[dc.dateStr] || {};
+      const existingRecord = currentDayData[opsId];
+      const packedVol = existingRecord ? (existingRecord.packed || 0) : 0;
+      
+      if (packedVol === 0) {
+        updates[FB_PB_ROOT + '/dailyRecords/' + dc.dateStr + '/' + opsId + '/statusInfo'] = mappedStatus;
+        if (!existingRecord) {
+          updates[FB_PB_ROOT + '/dailyRecords/' + dc.dateStr + '/' + opsId + '/packed'] = 0;
+          updates[FB_PB_ROOT + '/dailyRecords/' + dc.dateStr + '/' + opsId + '/name'] = staff.name;
+          updates[FB_PB_ROOT + '/dailyRecords/' + dc.dateStr + '/' + opsId + '/agency'] = staff.agency;
+        }
+        updatedCount++;
+      }
+    });
+  }
+
+  if (updatedCount === 0) {
+    showToast('Gak ada data roster yang perlu di-update bro (mungkin operator udah masuk PDVT / packed > 0 semua).', 'err');
+    return;
+  }
+
+  if (!confirm(`Ketemu ${updatedCount} jadwal libur/cuti/sakit untuk Auto-Fill ke DB.\n\nLanjut update Status ke database?`)) return;
+
+  const importedAtStr = new Date().toISOString();
+  const importedByStr = window.__authUserEmail || 'unknown';
+  
+  if (fbDb) {
+    fbDb.ref().update(updates).then(function () {
+      const logKey = fbDb.ref(FB_PB_ROOT + '/importLogs').push().key;
+      return fbDb.ref(FB_PB_ROOT + '/importLogs/' + logKey).set({
+        fileName: fileName,
+        tanggal: 'Auto-Fill Roster',
+        rowCount: updatedCount,
+        importedAt: importedAtStr,
+        importedBy: importedByStr
+      });
+    }).then(function () {
+      document.getElementById('pbFileName').innerText = 'Roster Auto-Fill sukses!';
+      showToast('Berhasil Auto-Fill Status Roster bro!', 'ok');
+    }).catch(function (err) {
+      showToast('❌ Gagal update roster ke database online: ' + err.message, 'err');
+    });
+  } else {
+    showToast('⚠️ Belum terhubung ke database online.', 'info');
+  }
+}
+
+// ==== UPDATE STATUS HARIAN OPERATOR (MANUAL VIA POPUP) ====
+function updateDailyStatusInfo(dateStr, opsId, selectEl) {
+  const val = selectEl.value;
+  const customInput = document.getElementById(`custom-status-${dateStr}`);
+  
+  if (val === 'Lainnya...') {
+    if (customInput) customInput.classList.remove('hidden');
+    return;
+  } else {
+    if (customInput) customInput.classList.add('hidden');
+  }
+
+  saveDailyStatusToFirebase(dateStr, opsId, val);
+}
+
+function updateDailyStatusCustom(dateStr, opsId, inputEl) {
+  const val = inputEl.value.trim();
+  if (!val) return;
+  saveDailyStatusToFirebase(dateStr, opsId, val);
+}
+
+function saveDailyStatusToFirebase(dateStr, opsId, statusText) {
+  if (!fbDb) return;
+  fbDb.ref(FB_PB_ROOT + '/dailyRecords/' + dateStr + '/' + opsId + '/statusInfo').set(statusText)
+    .then(() => {
+      console.log(`Status ${opsId} pada ${dateStr} berhasil di-update: ${statusText}`);
+    })
+    .catch((err) => {
+      console.error('Gagal update status:', err);
+    });
+}
+
+// ==== AGGREGASI & RENDER TABEL ====
+function computePbAggregates() {
+  const agg = {};
+  const targetDateStr = getYesterdayDateStr();
+
+  STAFF_ROSTER.forEach(function (s) {
+    agg[s.opsId] = { name: s.name, agency: s.agency, status: s.status, total: 0, days: 0, achievedDays: 0, d1Packed: 0, dailyData: {}, dailyStatus: {} };
+  });
+
+  Object.keys(pbMonthlyRecords).forEach(function (dateStr) {
+    const dayData = pbMonthlyRecords[dateStr] || {};
+    Object.keys(dayData).forEach(function (opsId) {
+      const rec = dayData[opsId];
+      if (!agg[opsId]) {
+        agg[opsId] = { name: rec.name || opsId, agency: rec.agency || '-', status: 'DW On Call', total: 0, days: 0, achievedDays: 0, d1Packed: 0, dailyData: {}, dailyStatus: {} };
+      }
+      const packed = rec.packed || 0;
+      agg[opsId].total += packed;
+      agg[opsId].days += 1;
+      agg[opsId].dailyData[dateStr] = packed;
+      agg[opsId].dailyStatus[dateStr] = rec.statusInfo || 'Normal / Bekerja';
+      
+      if (dateStr === targetDateStr) {
+        agg[opsId].d1Packed = packed;
+      }
+
+      const threshold = ACHIEVEMENT_THRESHOLD[agg[opsId].status] || ACHIEVEMENT_THRESHOLD['DW On Call'];
+      if (packed >= threshold) agg[opsId].achievedDays += 1;
+    });
+  });
+
+  let maxAvg = 0;
+  let topSpeedOpsId = null;
+
+  Object.keys(agg).forEach(function(opsId) {
+    const item = agg[opsId];
+    item.avg = item.days > 0 ? Math.round(item.total / item.days) : 0;
+    
+    if (item.days > 0 && item.avg > maxAvg) {
+      maxAvg = item.avg;
+      topSpeedOpsId = opsId;
+    }
+
+    const dates = Object.keys(item.dailyData).sort();
+    let underStreak = 0;
+    let overStreak = 0;
+    const threshold = ACHIEVEMENT_THRESHOLD[item.status] || ACHIEVEMENT_THRESHOLD['DW On Call'];
+    
+    for (let i = dates.length - 1; i >= 0; i--) {
+      const dStr = dates[i];
+      const stInfo = item.dailyStatus[dStr];
+      const isOffDutyOrLeave = stInfo && stInfo !== 'Normal / Bekerja';
+      
+      if (item.dailyData[dStr] < threshold) {
+        if (!isOffDutyOrLeave) {
+          underStreak++;
+        }
+      } else {
+        break;
+      }
+    }
+    item.underStreak = underStreak;
+
+    for (let i = dates.length - 1; i >= 0; i--) {
+      if (item.dailyData[dates[i]] >= threshold) {
+        overStreak++;
+      } else {
+        break;
+      }
+    }
+    item.overStreak = overStreak;
+
+    if (dates.length >= 4) {
+      const recent = dates.slice(-3).reduce((acc, d) => acc + item.dailyData[d], 0) / 3;
+      const prev = dates.slice(-6, -3).reduce((acc, d) => acc + item.dailyData[d], 0) / (dates.length >= 6 ? 3 : dates.length - 3);
+      item.growth = prev > 0 ? Math.round(((recent - prev) / prev) * 100) : 0;
+    } else {
+      item.growth = 0;
+    }
+  });
+
+  if (topSpeedOpsId) {
+    agg[topSpeedOpsId].isSpeedDemon = true;
+  }
+
+  return agg;
+}
+
+function statusBadgeClass(status) {
+  if (status === 'Dedicated Operator') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+  if (status === 'DW Reguler Pria') return 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300';
+  if (status === 'DW Reguler Wanita') return 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300';
+  return 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+}
+
+let pbSortState = { col: 'total', dir: 'desc' };
+
+function sortPbTable(col) {
+  if (pbSortState.col === col) {
+    pbSortState.dir = pbSortState.dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    pbSortState.col = col;
+    pbSortState.dir = (col === 'total' || col === 'avg') ? 'desc' : 'asc';
+  }
+  renderPbTable();
+}
+
+function updatePbSortIcons() {
+  document.querySelectorAll('thead tr.bg-shopee th[data-col]').forEach(function (th) {
+    const icon = th.querySelector('.sort-icon');
+    const isActive = th.getAttribute('data-col') === pbSortState.col;
+    th.classList.toggle('sort-active', isActive);
+    if (icon) icon.className = 'fa-solid ' + (isActive ? (pbSortState.dir === 'desc' ? 'fa-sort-down' : 'fa-sort-up') : 'fa-sort') + ' sort-icon';
+  });
+}
+
+function generateSparklineSVG(dailyData) {
+  const dates = Object.keys(dailyData).sort().slice(-7);
+  if (dates.length < 2) return '<span class="text-slate-300 text-[9px]">-</span>';
+  const values = dates.map(d => dailyData[d]);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const width = 50, height = 18;
+  
+  const points = values.map((val, idx) => {
+    const x = (idx / (values.length - 1)) * width;
+    const y = height - ((val - min) / range) * (height - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+
+  const strokeColor = values[values.length - 1] >= values[0] ? '#10b981' : '#f43f5e';
+  return `<svg width="${width}" height="${height}" class="inline-block"><polyline fill="none" stroke="${strokeColor}" stroke-width="2" points="${points}"/></svg>`;
+}
+
+function renderLeaderboard(rows) {
+  const sorted = rows.slice().sort((a, b) => b.total - a.total).slice(0, 3);
+  const container = document.getElementById('pbLeaderboard');
+  
+  if (!sorted.length || sorted[0].total === 0) {
+    container.innerHTML = '<span class="text-xs text-slate-400 italic">' + t('pb.hof.empty') + '</span>';
+    return;
+  }
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const badges = [
+    'bg-amber-500/20 border-amber-500/50 text-amber-950 dark:text-amber-200 shadow-md scale-105 z-10', 
+    'bg-slate-300/20 border-slate-400/50 text-slate-900 dark:text-slate-200 shadow-sm', 
+    'bg-orange-700/20 border-orange-800/50 text-orange-950 dark:text-orange-300 shadow-sm'
+  ];
+
+  container.innerHTML = sorted.map((item, idx) => `
+    <div class="flex items-center gap-3 border px-3.5 py-2 rounded-xl ${badges[idx]} shrink-0 transition-transform">
+      <span class="text-2xl">${medals[idx]}</span>
+      <div class="flex flex-col text-left">
+        <p class="font-extrabold text-xs md:text-sm leading-tight truncate max-w-[130px] md:max-w-[160px]">${item.name}</p>
+        <p class="text-xs font-mono font-bold opacity-90 mt-0.5">${item.total.toLocaleString('id-ID')} <span class="text-[10px] font-normal">${t('pb.unit.pcs')}</span></p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderThTotalHeader() {
+  const thTotal = document.getElementById('thTotalCol');
+  if (!thTotal) return;
+  if (d1ViewFilterActive) {
+    thTotal.innerHTML = `<span data-i18n="pb.table.d1Packed">${t('pb.table.d1Packed')}</span> (${getYesterdayDateStr()}) <i class="fa-solid fa-sort sort-icon"></i>`;
+  } else {
+    thTotal.innerHTML = `<span data-i18n="pb.table.totalTarget">${t('pb.table.totalTarget')}</span> <i class="fa-solid fa-sort sort-icon"></i>`;
+  }
+}
+
+function toggleD1ViewFilter() {
+  d1ViewFilterActive = !d1ViewFilterActive;
+  const btn = document.getElementById('btnD1ViewFilter');
+
+  if (d1ViewFilterActive) {
+    btn.classList.remove('bg-indigo-100', 'text-indigo-800', 'border-indigo-300');
+    btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-700', 'shadow-md');
+  } else {
+    btn.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-700', 'shadow-md');
+    btn.classList.add('bg-indigo-100', 'text-indigo-800', 'border-indigo-300');
+  }
+  renderThTotalHeader();
+  renderPbTable();
+}
+
+function setQuickDateRange(type) {
+  if (type === 'd1') {
+    const yest = getYesterdayDateStr();
+    document.getElementById('exportStartDate').value = yest;
+    document.getElementById('exportEndDate').value = yest;
+    if (!d1ViewFilterActive) toggleD1ViewFilter();
+  }
+}
+
+function toggleRedFlagFilter() {
+  redFlagFilterActive = !redFlagFilterActive;
+  const btn = document.getElementById('btnRedFlagFilter');
+  if (redFlagFilterActive) {
+    btn.classList.remove('bg-rose-100', 'text-rose-700', 'border-rose-300');
+    btn.classList.add('bg-rose-600', 'text-white', 'border-rose-700', 'shadow-md');
+  } else {
+    btn.classList.remove('bg-rose-600', 'text-white', 'border-rose-700', 'shadow-md');
+    btn.classList.add('bg-rose-100', 'text-rose-700', 'border-rose-300');
+  }
+  renderPbTable();
+}
+
+function renderPbTable() {
+  const agg = computePbAggregates();
+  let rows = Object.keys(agg).map(function (opsId) { return Object.assign({ opsId: opsId }, agg[opsId]); });
+
+  const searchTerm = (document.getElementById('pbSearch').value || '').toLowerCase();
+  const agencyFilter = document.getElementById('pbAgencyFilter').value;
+  const statusFilter = document.getElementById('pbStatusFilter').value;
+
+  const filtered = rows.filter(function (r) {
+    if (searchTerm && r.name.toLowerCase().indexOf(searchTerm) === -1 && r.opsId.toLowerCase().indexOf(searchTerm) === -1) return false;
+    if (agencyFilter !== 'ALL' && r.agency !== agencyFilter) return false;
+    if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
+    
+    if (d1ViewFilterActive && r.d1Packed === 0) return false;
+
+    if (redFlagFilterActive) {
+      const achRate = r.days > 0 ? (r.achievedDays / r.days) : 1;
+      const isLowPerf = r.days > 0 && achRate < 0.5;
+      const isUnderStreak = r.underStreak >= 3;
+      if (!isLowPerf && !isUnderStreak) return false;
+    }
+
+    return true;
+  });
+
+  const sortCol = pbSortState.col;
+  const sortDir = pbSortState.dir === 'desc' ? -1 : 1;
+  filtered.sort(function (a, b) {
+    let av = a[sortCol], bv = b[sortCol];
+    if (d1ViewFilterActive && sortCol === 'total') {
+      av = a.d1Packed; bv = b.d1Packed;
+    }
+    if (sortCol === 'total' || sortCol === 'avg') return (av - bv) * sortDir;
+    av = String(av || '').toLowerCase();
+    bv = String(bv || '').toLowerCase();
+    if (av < bv) return -1 * sortDir;
+    if (av > bv) return 1 * sortDir;
+    return 0;
+  });
+  
+  lastFilteredRows = filtered;
+  updatePbSortIcons();
+
+  const tbody = document.getElementById('pbTableBody');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-400">' + t('pb.table.noMatch') + '</td></tr>';
+  } else {
+    tbody.innerHTML = filtered.map(function (r, idx) {
+      const achRate = r.days > 0 ? (r.achievedDays / r.days) : 1;
+      const isLowPerformance = r.days > 0 && achRate < 0.5;
+      const rowBg = isLowPerformance ? 'bg-rose-50/80 dark:bg-rose-950/30 hover:bg-rose-100/80' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50';
+
+      let rankBadge = `<span class="font-bold text-slate-400">#${idx + 1}</span>`;
+      if (idx === 0) rankBadge = '🥇';
+      else if (idx === 1) rankBadge = '🥈';
+      else if (idx === 2) rankBadge = '🥉';
+
+      const dailyTarget = ACHIEVEMENT_THRESHOLD[r.status] || ACHIEVEMENT_THRESHOLD['DW On Call'];
+      const displayVolume = d1ViewFilterActive ? r.d1Packed : r.total;
+      const targetMonthly = d1ViewFilterActive ? dailyTarget : (dailyTarget * (r.days || 1));
+      const targetPct = Math.min(100, Math.round((displayVolume / targetMonthly) * 100));
+
+      const subtext = d1ViewFilterActive
+        ? (r.d1Packed >= dailyTarget ? ' ' + t('pb.table.achievedD1') : ' ' + t('pb.table.underD1'))
+        : (r.days > 0 ? t('pb.table.daysAchieved', { done: r.achievedDays, total: r.days }) : t('pb.table.noDataYet'));
+
+      let visualBadges = '';
+      if (r.isSpeedDemon) visualBadges += '<span title="' + t('pb.badge.speedDemon') + '" class="ml-1 text-[11px] cursor-help">🚀</span>';
+      if (r.days >= 3 && r.achievedDays === r.days) visualBadges += '<span title="' + t('pb.badge.mostConsistent') + '" class="ml-1 text-[11px] cursor-help">🛡️</span>';
+      if (r.overStreak >= 3) visualBadges += '<span title="' + t('pb.badge.onFire') + '" class="ml-1 text-[11px] cursor-help">🔥</span>';
+
+      let growthBadge = '<span class="text-slate-400 text-[10px]">-</span>';
+      if (r.growth > 0) {
+        growthBadge = `<span class="text-emerald-600 dark:text-emerald-400 font-extrabold text-[10px]"><i class="fa-solid fa-arrow-trend-up"></i> +${r.growth}%</span>`;
+      } else if (r.growth < 0) {
+        growthBadge = `<span class="text-rose-600 dark:text-rose-400 font-extrabold text-[10px]"><i class="fa-solid fa-arrow-trend-down"></i> ${r.growth}%</span>`;
+      }
+
+      return '<tr class="' + rowBg + ' transition-colors">' +
+        '<td class="text-base">' + rankBadge + '</td>' +
+        '<td class="font-semibold text-left dark:text-slate-200">' + r.name + visualBadges + (r.underStreak >= 3 ? ' <span title="' + t('pb.badge.underTargetWarn', { n: r.underStreak }) + '" class="text-rose-500 ml-1">⚠️</span>' : '') + '</td>' +
+        '<td class="font-mono font-semibold dark:text-slate-300">' + r.opsId + '</td>' +
+        '<td class="dark:text-slate-300">' + r.agency + '</td>' +
+        '<td><span class="text-[11px] font-bold px-2 py-0.5 rounded-full ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></td>' +
+        '<td>' +
+          '<button onclick="openPbDetail(\'' + r.opsId + '\')" class="font-mono font-extrabold text-shopee dark:text-rose-400 hover:underline text-[13px]">' + displayVolume.toLocaleString('id-ID') + '</button>' +
+          '<div class="w-24 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full mx-auto mt-1 overflow-hidden">' +
+            '<div class="' + (d1ViewFilterActive && r.d1Packed < dailyTarget ? 'bg-rose-500' : 'bg-emerald-500') + ' h-full rounded-full" style="width: ' + targetPct + '%"></div>' +
+          '</div>' +
+          '<div class="text-[9px] text-slate-400 mt-0.5">' + subtext + '</div>' +
+        '</td>' +
+        '<td class="font-mono font-bold text-slate-700 dark:text-slate-200">' + r.avg.toLocaleString('id-ID') + t('pb.table.perDay') + '</td>' +
+        '<td><div class="flex items-center justify-center gap-2">' + generateSparklineSVG(r.dailyData) + growthBadge + '</div></td>' +
+      '</tr>';
+    }).join('');
+  }
+  updatePbSummary(rows);
+  renderAgencyChart(rows);
+  renderLeaderboard(rows);
+}
+
+function updatePbSummary(allRows) {
+  const withData = allRows.filter(function (r) { return r.days > 0; });
+  document.getElementById('pbSummaryStaff').innerText = withData.length + ' / ' + allRows.length;
+
+  let totalDays = 0, totalAchieved = 0;
+  withData.forEach(function (r) { totalDays += r.days; totalAchieved += r.achievedDays; });
+  const rate = totalDays > 0 ? Math.round((totalAchieved / totalDays) * 100) : 0;
+  document.getElementById('pbSummaryRate').innerText = rate + '%';
+  document.getElementById('pbSummaryRateDetail').innerText = totalDays > 0 ? t('pb.summary.rateDetail', { done: totalAchieved, total: totalDays }) : t('pb.table.noDataYet');
+
+  if (withData.length) {
+    const top = withData.slice().sort(function (a, b) { return b.total - a.total; })[0];
+    document.getElementById('pbSummaryTop').innerText = top.name + ' (' + top.total.toLocaleString('id-ID') + ')';
+  } else {
+    document.getElementById('pbSummaryTop').innerText = '-';
+  }
+}
+
+// ==== AGENCY BREAKDOWN (proportional bars) ====
+function renderAgencyChart(allRows) {
+  const agencyColors = { MYROBIN: '#7c6bb0', UGBM: '#3b82f6', IPI: '#f59e0b' };
+  const agencyTotals = { MYROBIN: 0, UGBM: 0, IPI: 0 };
+  allRows.forEach(r => {
+    if (agencyTotals[r.agency] !== undefined) agencyTotals[r.agency] += (r.total || 0);
+  });
+
+  const grandTotal = agencyTotals.MYROBIN + agencyTotals.UGBM + agencyTotals.IPI;
+  const maxVal = Math.max(agencyTotals.MYROBIN, agencyTotals.UGBM, agencyTotals.IPI, 1);
+  const container = document.getElementById('agencyBreakdownList');
+  if (!container) return;
+
+  container.innerHTML = Object.keys(agencyTotals).map(function (agency) {
+    const val = agencyTotals[agency];
+    const widthPct = Math.max((val / maxVal) * 100, val > 0 ? 4 : 0);
+    const sharePct = grandTotal > 0 ? Math.round((val / grandTotal) * 100) : 0;
+    return '<div>' +
+      '<div class="flex items-center justify-between text-[9px] leading-none mb-0.5">' +
+        '<span class="font-bold text-slate-500 dark:text-slate-400">' + agency + '</span>' +
+        '<span class="text-slate-400 dark:text-slate-500">' + val.toLocaleString('id-ID') + ' ' + t('pb.unit.pcs') + ' &middot; ' + sharePct + '%</span>' +
+      '</div>' +
+      '<div class="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">' +
+        '<div class="h-full rounded-full" style="width:' + widthPct + '%; background-color:' + agencyColors[agency] + ';"></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ==== POPUP DETAIL HARIAN & CHART ====
+function formatTanggalId(dateStr) {
+  const parts = dateStr.split('-').map(Number);
+  const monthNames = getMonthNames();
+  return parts[2] + '-' + monthNames[parts[1] - 1] + '-' + parts[0];
+}
+
+function openPbDetail(opsId) {
+  currentDetailOpsId = opsId;
+  const agg = computePbAggregates();
+  const staff = agg[opsId];
+  if (!staff) return;
+  const threshold = ACHIEVEMENT_THRESHOLD[staff.status] || ACHIEVEMENT_THRESHOLD['DW On Call'];
+
+  document.getElementById('pbDetailName').innerText = staff.name;
+  document.getElementById('pbDetailMeta').innerText = opsId + ' • ' + staff.agency + ' • ' + statusLabel(staff.status) + ' ' + t('pb.detail.targetSuffix', { n: threshold.toLocaleString('id-ID') });
+
+  const streakEl = document.getElementById('pbDetailStreak');
+  if (staff.underStreak >= 3) {
+    streakEl.innerText = t('pb.detail.streakWarn', { n: staff.underStreak });
+    streakEl.classList.remove('hidden');
+  } else {
+    streakEl.classList.add('hidden');
+  }
+
+  const dateKeys = Object.keys(pbMonthlyRecords).filter(function (d) { return pbMonthlyRecords[d][opsId]; }).sort();
+  const tbody = document.getElementById('pbDetailBody');
+  
+  const packedValues = [];
+  const chartLabels = [];
+
+  const presetOptions = ['Normal / Bekerja', 'Off Duty', 'Rest Day', 'Cuti', 'Sakit', 'Izin', 'Lainnya...'];
+
+  if (!dateKeys.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400">' + t('pb.detail.noData') + '</td></tr>';
+  } else {
+    tbody.innerHTML = dateKeys.map(function (d) {
+      const rec = pbMonthlyRecords[d][opsId];
+      const packed = rec.packed || 0;
+      const statusInfo = rec.statusInfo || 'Normal / Bekerja';
+      
+      packedValues.push(packed);
+      chartLabels.push(formatTanggalId(d));
+
+      const avg = (packed / 8);
+      const achieved = packed >= threshold;
+      const achCls = achieved ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+      const achText = achieved ? t('pb.detail.achieved') : t('pb.detail.notAchieved');
+
+      const isPreset = presetOptions.includes(statusInfo);
+      const selectedPreset = isPreset ? statusInfo : 'Lainnya...';
+      const customVal = isPreset ? '' : statusInfo;
+
+      let selectOptionsHtml = presetOptions.map(opt => `<option value="${opt}" ${selectedPreset === opt ? 'selected' : ''}>${opt}</option>`).join('');
+
+      return '<tr class="dark:border-slate-700">' +
+        '<td class="dark:text-slate-300 font-medium">' + formatTanggalId(d) + '</td>' +
+        '<td>' +
+          '<div class="flex flex-col gap-1 items-center">' +
+            '<select onchange="updateDailyStatusInfo(\'' + d + '\', \'' + opsId + '\', this)" class="bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600 rounded px-1.5 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-shopee">' +
+              selectOptionsHtml +
+            '</select>' +
+            '<input id="custom-status-' + d + '" type="text" placeholder="Tulis alasan..." value="' + customVal + '" onblur="updateDailyStatusCustom(\'' + d + '\', \'' + opsId + '\', this)" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-1.5 py-0.5 text-[11px] w-32 focus:outline-none focus:ring-1 focus:ring-shopee ' + (selectedPreset === 'Lainnya...' ? '' : 'hidden') + '" />' +
+          '</div>' +
+        '</td>' +
+        '<td class="font-mono font-bold dark:text-slate-200">' + packed.toLocaleString('id-ID') + '</td>' +
+        '<td class="font-mono dark:text-slate-300">' + avg.toFixed(1) + t('pb.detail.perHour') + '</td>' +
+        '<td class="font-bold ' + achCls + '">' + achText + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+  document.getElementById('pbDetailTotal').innerText = staff.total.toLocaleString('id-ID');
+
+  const modal = document.getElementById('pbDetailModal');
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+
+  setTimeout(() => {
+    document.getElementById('pbDetailCloseBtn').focus();
+  }, 100);
+
+  const ctx = document.getElementById('detailDailyChart').getContext('2d');
+  if (detailChartInstance) detailChartInstance.destroy();
+
+  detailChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: chartLabels,
+      datasets: [
+        {
+          label: 'Packed Harian',
+          data: packedValues,
+          backgroundColor: packedValues.map(v => v >= threshold ? '#10b981' : '#f43f5e'),
+          borderRadius: 4
+        },
+        {
+          label: 'Target',
+          data: Array(chartLabels.length).fill(threshold),
+          type: 'line',
+          borderColor: '#f59e0b',
+          borderDash: [5, 5],
+          pointRadius: 0,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 9 }, color: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#64748b' } },
+        y: { ticks: { font: { size: 9 }, color: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#64748b' } }
+      }
+    }
+  });
+}
+
+// FITUR "INDIVIDUAL PERFORMANCE CARD" (RAPOR DIGITAL PDF 1 HALAMAN)
+function downloadIndividualSlipPDF() {
+  if (!currentDetailOpsId) return;
+  const agg = computePbAggregates();
+  const staff = agg[currentDetailOpsId];
+  if (!staff) return;
+  staff.opsId = currentDetailOpsId;
+
+  const threshold = ACHIEVEMENT_THRESHOLD[staff.status] || ACHIEVEMENT_THRESHOLD['DW On Call'];
+  const achRatePct = staff.days > 0 ? Math.round((staff.achievedDays / staff.days) * 100) : 0;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  // Header Banner
+  doc.setFillColor(122, 18, 36);
+  doc.rect(0, 0, 210, 30, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text("OPERATOR PERFORMANCE SLIP", 14, 15);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("Palangka Raya DC - Internal Rapor Digital", 14, 22);
+
+  const todayStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  doc.setFontSize(9);
+  doc.text(`Tanggal Cetak: ${todayStr}`, 145, 22);
+
+  // Profile Section
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.text("PROFIL OPERATOR", 14, 40);
+
+  doc.setLineWidth(0.5);
+  doc.setDrawColor(200, 200, 200);
+  doc.line(14, 42, 196, 42);
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.text("Nama Operator", 14, 50);
+  doc.text("Ops ID", 80, 50);
+  doc.text("Agency", 130, 50);
+
+  doc.setFont("helvetica", "normal");
+  doc.text(`: ${staff.name}`, 40, 50);
+  doc.text(`: ${staff.opsId}`, 98, 50);
+  doc.text(`: ${staff.agency}`, 148, 50);
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Status Kerja", 14, 57);
+  doc.text("Daily Target", 80, 57);
+
+  doc.setFont("helvetica", "normal");
+  doc.text(`: ${staff.status}`, 40, 57);
+  doc.text(`: ${threshold.toLocaleString('id-ID')} pcs/hari`, 98, 57);
+
+  // Performance Summary Box
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("RINGKASAN PERFORMA BULAN INI", 14, 70);
+  doc.line(14, 72, 196, 72);
+
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, 76, 182, 28, 2, 2, 'F');
+
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text("TOTAL BAGGING", 22, 84);
+  doc.text("RATA-RATA / HARI", 70, 84);
+  doc.text("ACHIEVEMENT RATE", 118, 84);
+  doc.text("UNDER-STREAK", 162, 84);
+
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(122, 18, 36);
+  doc.text(`${staff.total.toLocaleString('id-ID')} pcs`, 22, 94);
+
+  doc.setTextColor(30, 41, 59);
+  doc.text(`${staff.avg.toLocaleString('id-ID')} pcs`, 70, 94);
+
+  const rateColor = achRatePct >= 80 ? [16, 185, 129] : (achRatePct >= 50 ? [245, 158, 11] : [225, 29, 72]);
+  doc.setTextColor(rateColor[0], rateColor[1], rateColor[2]);
+  doc.text(`${achRatePct}% (${staff.achievedDays}/${staff.days} Hari)`, 118, 94);
+
+  doc.setTextColor(staff.underStreak >= 3 ? 225 : 30, staff.underStreak >= 3 ? 29 : 41, staff.underStreak >= 3 ? 72 : 59);
+  doc.text(`${staff.underStreak} Hari`, 162, 94);
+
+  // Table of Daily Breakdown
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("RINCIAN PRODUKTIVITAS HARIAN", 14, 114);
+
+  const dateKeys = Object.keys(pbMonthlyRecords).filter(d => {
+    const rec = pbMonthlyRecords[d][currentDetailOpsId];
+    if (!rec) return false;
+    const stInfo = rec.statusInfo || 'Normal / Bekerja';
+    return stInfo === 'Normal / Bekerja';
+  }).sort();
+  const tableRows = dateKeys.map(d => {
+    const rec = pbMonthlyRecords[d][currentDetailOpsId];
+    const packed = rec.packed || 0;
+    const stInfo = rec.statusInfo || 'Normal / Bekerja';
+    const avgJam = (packed / 8).toFixed(1);
+    const isAch = packed >= threshold;
+    return [formatTanggalId(d), stInfo, `${packed.toLocaleString('id-ID')} pcs`, `${avgJam} pcs/jam`, isAch ? 'ACHIEVED' : 'NOT ACHIEVED'];
+  });
+
+  doc.autoTable({
+    startY: 118,
+    head: [['Tanggal', 'Status/Keterangan', 'Volume Packed', 'Rata-rata/Jam', 'Status Target']],
+    body: tableRows,
+    styles: { fontSize: 8, halign: 'center' },
+    headStyles: { fillColor: [122, 18, 36] },
+    columnStyles: { 0: { halign: 'left' }, 1: { halign: 'left' } }
+  });
+
+  // Evaluation & Coaching Recommendation Section
+  const finalY = (doc.lastAutoTable && doc.lastAutoTable.finalY) ? doc.lastAutoTable.finalY + 10 : 180;
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("EVALUASI & REKOMENDASI COACHING", 14, finalY);
+  doc.line(14, finalY + 2, 196, finalY + 2);
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  
+  let recText = "";
+  if (achRatePct >= 80) {
+    recText = "• Performa Sangat Baik! Operator menunjukkan konsistensi tinggi di atas target harian.\n• Rekomendasi: Pertahankan ritme kerja, siap direkomendasikan untuk pembaharuan kontrak / peran Senior Operator.";
+  } else if (achRatePct >= 50) {
+    recText = "• Performa Cukup Baik, namun masih ada fluktuasi produktivitas pada beberapa hari kerja.\n• Rekomendasi: Lakukan monitoring rutin harian dan coaching ringan untuk menjaga konsistensi pacing.";
+  } else {
+    recText = "• PERINGATAN (RED FLAG): Performa berada di bawah 50% target harian atau mengalami streak under target.\n• Rekomendasi: Wajib 1-on-1 coaching, identifikasi kendala teknis/fisik di lapangan, dan buat action plan perbaikan 1 minggu.";
+  }
+
+  const splitRec = doc.splitTextToSize(recText, 180);
+  doc.text(splitRec, 14, finalY + 10);
+
+  // Signature Space
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("Disiapkan Oleh,", 14, finalY + 38);
+  doc.text("Disetujui Oleh,", 140, finalY + 38);
+
+  doc.setFont("helvetica", "normal");
+  doc.text("_______________________", 14, finalY + 55);
+  doc.text("Team Leader / Supervisor", 14, finalY + 60);
+
+  doc.text("_______________________", 140, finalY + 55);
+  doc.text("DC Area Manager", 140, finalY + 60);
+
+  doc.save(`Performance_Slip_${staff.opsId}_${staff.name.replace(/\s+/g, '_')}.pdf`);
+}
+
+function closePbDetail() { 
+  const modal = document.getElementById('pbDetailModal');
+  modal.classList.remove('active');
+  document.body.style.overflow = 'auto';
+  currentDetailOpsId = null;
+}
+
+// ==== HANDLER EVENT POPUP ====
+const pbDetailModal = document.getElementById('pbDetailModal');
+
+pbDetailModal.addEventListener('click', function(e) {
+  if (e.target === pbDetailModal) closePbDetail();
+});
+
+// ESC buat nutup sidebar juga (dicek terpisah biar gak nyangkut sama guard pbDetailModal di bawah)
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape' && e.key !== 'Esc') return;
+  const sidebar = document.getElementById('appSidebar');
+  if (sidebar && sidebar.classList.contains('open')) toggleAppSidebar();
+});
+
+document.addEventListener('keydown', function(e) {
+  if (!pbDetailModal.classList.contains('active')) return;
+
+  if (e.key === 'Escape' || e.key === 'Esc') closePbDetail();
+
+  if (e.key === 'Tab') {
+    const focusables = pbDetailModal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([-tabindex="-1"])');
+    if (!focusables.length) return;
+
+    const firstEl = focusables[0];
+    const lastEl = focusables[focusables.length - 1];
+
+    if (e.shiftKey && document.activeElement === firstEl) {
+      lastEl.focus();
+      e.preventDefault();
+    } else if (!e.shiftKey && document.activeElement === lastEl) {
+      firstEl.focus();
+      e.preventDefault();
+    }
+  }
+});
+
+function getFilteredExportData() {
+  const start = document.getElementById('exportStartDate').value;
+  const end = document.getElementById('exportEndDate').value;
+
+  if (!start && !end) return lastFilteredRows;
+
+  return lastFilteredRows.map((r) => {
+    let customTotal = 0;
+    let customDays = 0;
+    Object.keys(r.dailyData).forEach(d => {
+      if ((!start || d >= start) && (!end || d <= end)) {
+        customTotal += r.dailyData[d];
+        customDays++;
+      }
+    });
+    return {
+      ...r,
+      total: customTotal,
+      days: customDays,
+      avg: customDays > 0 ? Math.round(customTotal / customDays) : 0
+    };
+  });
+}
+
+function exportToExcel() {
+  const dataToExport = getFilteredExportData();
+  if (!dataToExport.length) return showToast('Tidak ada data untuk diexport!', 'err');
+  
+  const data = dataToExport.map((r, i) => ({
+    Rank: i + 1,
+    Nama: r.name,
+    OpsID: r.opsId,
+    Agency: r.agency,
+    Status: r.status,
+    'Total Packed': r.total,
+    'Rata-Rata/Hari': r.avg,
+    'Hari Tercapai': `${r.achievedDays}/${r.days}`
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Performance Bagger");
+  XLSX.writeFile(wb, `Performance_Bagger_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+function exportToPDF() {
+  const dataToExport = getFilteredExportData();
+  if (!dataToExport.length) return showToast('Tidak ada data untuk diexport!', 'err');
+  
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.text("Laporan Performance Bagger - Palangka Raya DC", 14, 15);
+  doc.setFontSize(10);
+  doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 14, 22);
+
+  const tableData = dataToExport.map((r, i) => [
+    i + 1, r.name, r.opsId, r.agency, r.status, r.total.toLocaleString('id-ID'), r.avg.toLocaleString('id-ID'), `${r.achievedDays}/${r.days}`
+  ]);
+
+  doc.autoTable({
+    startY: 28,
+    head: [['Rank', 'Nama', 'OpsID', 'Agency', 'Status', 'Total Packed', 'Avg/Hari', 'Achieved']],
+    body: tableData,
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [122, 18, 36] }
+  });
+
+  doc.save(`Performance_Bagger_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+function toggleDarkMode() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  const icon = document.getElementById('darkModeIcon');
+  if (isDark) {
+    icon.className = 'fa-solid fa-sun text-amber-400';
+    localStorage.setItem('theme', 'dark');
+  } else {
+    icon.className = 'fa-solid fa-moon text-amber-300';
+    localStorage.setItem('theme', 'light');
+  }
+  if (lastFilteredRows.length) renderAgencyChart(lastFilteredRows);
+}
+
+// ==== INITIALIZATION ====
+document.addEventListener('DOMContentLoaded', function() {
+  if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark');
+    const icon = document.getElementById('darkModeIcon');
+    if (icon) icon.className = 'fa-solid fa-sun text-amber-400';
+  }
+  initPbFirebaseSync();
+  initAppLanguageSwitcher();
+});
+</script>
+
+<script>
+// ==== LANGUAGE SWITCHER (ID/EN/JA/ZH) — sinkron sama pola di modul Rest Time ====
+const APP_LANG_KEY = "pr_dc_app_language";
+const I18N_DICT = {
+  id: {
+    "pb.header.title": "Performance Bagger",
+    "pb.header.subtitle": "Monitoring Produktivitas Packer / Bagger Harian",
+    "pb.header.mode": "Mode",
+    "pb.header.print": "Cetak",
+    "pb.header.importPdvt": "Import PDVT",
+    "pb.header.importRoster": "Import Roster",
+    "pb.header.noImport": "Belum ada import",
+    "pb.hof.title": "Hall of Fame - Top Performers",
+    "pb.hof.subtitle": "Packer dengan achievement tertinggi bulan ini",
+    "pb.hof.loading": "Memuat Top Bagger...",
+    "pb.hof.empty": "Belum ada peringkat.",
+    "pb.summary.month": "Bulan Berjalan",
+    "pb.summary.staff": "Operator Terdata",
+    "pb.summary.rate": "Achievement Rate",
+    "pb.summary.top": "Top Performer",
+    "pb.summary.agency": "Agency Breakdown",
+    "pb.filter.searchPlaceholder": "Cari nama / OpsID...",
+    "pb.filter.allAgency": "Semua Agency",
+    "pb.filter.allStatus": "Semua Status",
+    "pb.filter.statusDedicated": "Dedicated Operator",
+    "pb.filter.statusRegPria": "DW Reguler Pria",
+    "pb.filter.statusRegWanita": "DW Reguler Wanita",
+    "pb.filter.statusOnCall": "DW On Call",
+    "pb.filter.quickViewD1": "Quick View D+1",
+    "pb.filter.redFlag": "Needs Coaching / Red Flag",
+    "pb.filter.rangeExport": "Range Export:",
+    "pb.filter.quickD1Btn": "Quick D+1",
+    "pb.export.excel": "Excel",
+    "pb.export.pdf": "PDF",
+    "pb.table.rank": "Rank",
+    "pb.table.name": "Nama",
+    "pb.table.opsId": "OpsID",
+    "pb.table.agency": "Agency",
+    "pb.table.status": "Status",
+    "pb.table.totalTarget": "Total Packed / Target",
+    "pb.table.d1Packed": "D+1 Packed",
+    "pb.table.avgDay": "Rata-rata/Hari",
+    "pb.table.growthTrend": "Growth & Trend",
+    "pb.table.loading": "Memuat data...",
+    "pb.table.noMatch": "Gak ada data yang cocok.",
+    "lang.label": "Bahasa",
+    "feedback.title": "Saran & Masukan",
+    "feedback.placeholder": "Tulis saran, masukan, atau curhatan kamu di sini...",
+    "feedback.submit": "Kirim",
+    "feedback.loading": "Memuat...",
+    "feedback.empty": "Belum ada saran & masukan. Jadi yang pertama nulis!",
+    "feedback.errorLoad": "Gagal memuat data. Coba lagi nanti.",
+    "feedback.errorConn": "Koneksi belum siap, coba beberapa saat lagi.",
+    "feedback.errorSend": "Gagal mengirim, coba lagi.",
+    "feedback.anon": "Anonim",
+    "logout.btn": "Logout",
+    "pb.table.achievedD1": "Achieved Target D+1",
+    "pb.table.underD1": "Under Target D+1",
+    "pb.table.daysAchieved": "{done}/{total} hari tercapai",
+    "pb.table.noDataYet": "Belum ada data",
+    "pb.table.perDay": "/hari",
+    "pb.summary.rateDetail": "{done} dari {total} data harian",
+    "pb.badge.speedDemon": "Speed Demon (Avg Tertinggi)",
+    "pb.badge.mostConsistent": "Paling Konsisten (Achievement 100%)",
+    "pb.badge.onFire": "On Fire (3 Hari Beruntun Di Atas Target)",
+    "pb.badge.underTargetWarn": "{n} hari under target!",
+    "pb.detail.targetSuffix": "(Target >{n}/hari)",
+    "pb.detail.streakWarn": "{n} Hari Beruntun Under Target!",
+    "pb.detail.noData": "Belum ada data harian buat operator ini bulan ini.",
+    "pb.detail.achieved": "Tercapai",
+    "pb.detail.notAchieved": "Belum Tercapai",
+    "pb.detail.perHour": "/jam",
+    "pb.unit.pcs": "pcs"
+  },
+  en: {
+    "pb.header.title": "Performance Bagger",
+    "pb.header.subtitle": "Daily Packer/Bagger Productivity Monitoring",
+    "pb.header.mode": "Mode",
+    "pb.header.print": "Print",
+    "pb.header.importPdvt": "Import PDVT",
+    "pb.header.importRoster": "Import Roster",
+    "pb.header.noImport": "No import yet",
+    "pb.hof.title": "Hall of Fame - Top Performers",
+    "pb.hof.subtitle": "Packers with the highest achievement this month",
+    "pb.hof.loading": "Loading Top Bagger...",
+    "pb.hof.empty": "No ranking yet.",
+    "pb.summary.month": "Current Month",
+    "pb.summary.staff": "Recorded Operators",
+    "pb.summary.rate": "Achievement Rate",
+    "pb.summary.top": "Top Performer",
+    "pb.summary.agency": "Agency Breakdown",
+    "pb.filter.searchPlaceholder": "Search name / OpsID...",
+    "pb.filter.allAgency": "All Agencies",
+    "pb.filter.allStatus": "All Status",
+    "pb.filter.statusDedicated": "Dedicated Operator",
+    "pb.filter.statusRegPria": "DW Regular Male",
+    "pb.filter.statusRegWanita": "DW Regular Female",
+    "pb.filter.statusOnCall": "DW On Call",
+    "pb.filter.quickViewD1": "Quick View D+1",
+    "pb.filter.redFlag": "Needs Coaching / Red Flag",
+    "pb.filter.rangeExport": "Export Range:",
+    "pb.filter.quickD1Btn": "Quick D+1",
+    "pb.export.excel": "Excel",
+    "pb.export.pdf": "PDF",
+    "pb.table.rank": "Rank",
+    "pb.table.name": "Name",
+    "pb.table.opsId": "OpsID",
+    "pb.table.agency": "Agency",
+    "pb.table.status": "Status",
+    "pb.table.totalTarget": "Total Packed / Target",
+    "pb.table.d1Packed": "D+1 Packed",
+    "pb.table.avgDay": "Average/Day",
+    "pb.table.growthTrend": "Growth & Trend",
+    "pb.table.loading": "Loading data...",
+    "pb.table.noMatch": "No matching data.",
+    "lang.label": "Language",
+    "feedback.title": "Suggestions & Feedback",
+    "feedback.placeholder": "Write your suggestion, feedback, or thoughts here...",
+    "feedback.submit": "Send",
+    "feedback.loading": "Loading...",
+    "feedback.empty": "No suggestions yet. Be the first to write one!",
+    "feedback.errorLoad": "Failed to load data. Please try again later.",
+    "feedback.errorConn": "Connection not ready, please try again in a moment.",
+    "feedback.errorSend": "Failed to send, please try again.",
+    "feedback.anon": "Anonymous",
+    "logout.btn": "Logout",
+    "pb.table.achievedD1": "Achieved Target D+1",
+    "pb.table.underD1": "Under Target D+1",
+    "pb.table.daysAchieved": "{done}/{total} days achieved",
+    "pb.table.noDataYet": "No data yet",
+    "pb.table.perDay": "/day",
+    "pb.summary.rateDetail": "{done} of {total} daily records",
+    "pb.badge.speedDemon": "Speed Demon (Highest Avg)",
+    "pb.badge.mostConsistent": "Most Consistent (100% Achievement)",
+    "pb.badge.onFire": "On Fire (3 Consecutive Days Above Target)",
+    "pb.badge.underTargetWarn": "{n} days under target!",
+    "pb.detail.targetSuffix": "(Target >{n}/day)",
+    "pb.detail.streakWarn": "{n} Consecutive Days Under Target!",
+    "pb.detail.noData": "No daily data yet for this operator this month.",
+    "pb.detail.achieved": "Achieved",
+    "pb.detail.notAchieved": "Not Achieved",
+    "pb.detail.perHour": "/hr",
+    "pb.unit.pcs": "pcs"
+  },
+  ja: {
+    "pb.header.title": "Performance Bagger",
+    "pb.header.subtitle": "パッカー/バッガー日次生産性モニタリング",
+    "pb.header.mode": "モード",
+    "pb.header.print": "印刷",
+    "pb.header.importPdvt": "PDVTインポート",
+    "pb.header.importRoster": "ロスターインポート",
+    "pb.header.noImport": "インポート未実施",
+    "pb.hof.title": "殿堂入り - トップパフォーマー",
+    "pb.hof.subtitle": "今月最高の実績を持つパッカー",
+    "pb.hof.loading": "トップバッガーを読み込み中...",
+    "pb.hof.empty": "まだランキングがありません。",
+    "pb.summary.month": "当月",
+    "pb.summary.staff": "登録オペレーター数",
+    "pb.summary.rate": "達成率",
+    "pb.summary.top": "トップパフォーマー",
+    "pb.summary.agency": "エージェンシー内訳",
+    "pb.filter.searchPlaceholder": "名前・OpsIDで検索...",
+    "pb.filter.allAgency": "全エージェンシー",
+    "pb.filter.allStatus": "全ステータス",
+    "pb.filter.statusDedicated": "専属オペレーター",
+    "pb.filter.statusRegPria": "DW 正規男性",
+    "pb.filter.statusRegWanita": "DW 正規女性",
+    "pb.filter.statusOnCall": "DW オンコール",
+    "pb.filter.quickViewD1": "クイックビュー D+1",
+    "pb.filter.redFlag": "要指導・レッドフラグ",
+    "pb.filter.rangeExport": "エクスポート範囲：",
+    "pb.filter.quickD1Btn": "クイック D+1",
+    "pb.export.excel": "Excel",
+    "pb.export.pdf": "PDF",
+    "pb.table.rank": "ランク",
+    "pb.table.name": "名前",
+    "pb.table.opsId": "OpsID",
+    "pb.table.agency": "エージェンシー",
+    "pb.table.status": "ステータス",
+    "pb.table.totalTarget": "総梱包数 / 目標",
+    "pb.table.d1Packed": "D+1 梱包数",
+    "pb.table.avgDay": "1日平均",
+    "pb.table.growthTrend": "成長とトレンド",
+    "pb.table.loading": "データ読み込み中...",
+    "pb.table.noMatch": "一致するデータがありません。",
+    "lang.label": "言語",
+    "feedback.title": "ご意見・ご要望",
+    "feedback.placeholder": "ご意見、ご要望、感想などをここに書いてください...",
+    "feedback.submit": "送信",
+    "feedback.loading": "読み込み中...",
+    "feedback.empty": "まだ投稿がありません。最初の投稿をしてみましょう!",
+    "feedback.errorLoad": "データの読み込みに失敗しました。後でもう一度お試しください。",
+    "feedback.errorConn": "接続の準備ができていません。しばらくしてからお試しください。",
+    "feedback.errorSend": "送信に失敗しました。もう一度お試しください。",
+    "feedback.anon": "匿名",
+    "logout.btn": "ログアウト",
+    "pb.table.achievedD1": "D+1 目標達成",
+    "pb.table.underD1": "D+1 目標未達",
+    "pb.table.daysAchieved": "{total}日中{done}日達成",
+    "pb.table.noDataYet": "データなし",
+    "pb.table.perDay": "/日",
+    "pb.summary.rateDetail": "{total}件中{done}件達成",
+    "pb.badge.speedDemon": "スピードデーモン（最高平均）",
+    "pb.badge.mostConsistent": "最も安定（達成率100%）",
+    "pb.badge.onFire": "絶好調（3日連続目標超え）",
+    "pb.badge.underTargetWarn": "{n}日連続で目標未達！",
+    "pb.detail.targetSuffix": "（目標 >{n}/日）",
+    "pb.detail.streakWarn": "{n}日連続で目標未達！",
+    "pb.detail.noData": "今月、このオペレーターの日次データはまだありません。",
+    "pb.detail.achieved": "達成",
+    "pb.detail.notAchieved": "未達成",
+    "pb.detail.perHour": "/時間",
+    "pb.unit.pcs": "個"
+  },
+  zh: {
+    "pb.header.title": "Performance Bagger",
+    "pb.header.subtitle": "打包员/装袋员日生产力监控",
+    "pb.header.mode": "模式",
+    "pb.header.print": "打印",
+    "pb.header.importPdvt": "导入PDVT",
+    "pb.header.importRoster": "导入排班表",
+    "pb.header.noImport": "尚未导入",
+    "pb.hof.title": "名人堂 - 最佳表现者",
+    "pb.hof.subtitle": "本月成就最高的打包员",
+    "pb.hof.loading": "正在加载最佳装袋员...",
+    "pb.hof.empty": "暂无排名。",
+    "pb.summary.month": "当前月份",
+    "pb.summary.staff": "已记录操作员",
+    "pb.summary.rate": "达成率",
+    "pb.summary.top": "最佳表现者",
+    "pb.summary.agency": "代理商细分",
+    "pb.filter.searchPlaceholder": "搜索姓名/OpsID...",
+    "pb.filter.allAgency": "全部代理商",
+    "pb.filter.allStatus": "全部状态",
+    "pb.filter.statusDedicated": "专属操作员",
+    "pb.filter.statusRegPria": "DW正式男性",
+    "pb.filter.statusRegWanita": "DW正式女性",
+    "pb.filter.statusOnCall": "DW 随叫随到",
+    "pb.filter.quickViewD1": "快速查看 D+1",
+    "pb.filter.redFlag": "需辅导/红旗标记",
+    "pb.filter.rangeExport": "导出范围：",
+    "pb.filter.quickD1Btn": "快速 D+1",
+    "pb.export.excel": "Excel",
+    "pb.export.pdf": "PDF",
+    "pb.table.rank": "排名",
+    "pb.table.name": "姓名",
+    "pb.table.opsId": "OpsID",
+    "pb.table.agency": "代理商",
+    "pb.table.status": "状态",
+    "pb.table.totalTarget": "总打包量/目标",
+    "pb.table.d1Packed": "D+1 打包量",
+    "pb.table.avgDay": "日均",
+    "pb.table.growthTrend": "增长与趋势",
+    "pb.table.loading": "正在加载数据...",
+    "pb.table.noMatch": "没有匹配的数据。",
+    "lang.label": "语言",
+    "feedback.title": "建议与反馈",
+    "feedback.placeholder": "在此写下你的建议、反馈或想法...",
+    "feedback.submit": "发送",
+    "feedback.loading": "加载中...",
+    "feedback.empty": "还没有反馈。快来抢占第一条吧!",
+    "feedback.errorLoad": "数据加载失败，请稍后再试。",
+    "feedback.errorConn": "连接尚未就绪，请稍后再试。",
+    "feedback.errorSend": "发送失败，请重试。",
+    "feedback.anon": "匿名",
+    "logout.btn": "退出登录",
+    "pb.table.achievedD1": "D+1 已达标",
+    "pb.table.underD1": "D+1 未达标",
+    "pb.table.daysAchieved": "{total}天中{done}天达标",
+    "pb.table.noDataYet": "暂无数据",
+    "pb.table.perDay": "/天",
+    "pb.summary.rateDetail": "{total}条中{done}条已达标",
+    "pb.badge.speedDemon": "速度恶魔（最高平均）",
+    "pb.badge.mostConsistent": "最稳定（达成率100%）",
+    "pb.badge.onFire": "势头正猛（连续3天超过目标）",
+    "pb.badge.underTargetWarn": "连续{n}天未达标！",
+    "pb.detail.targetSuffix": "（目标 >{n}/天）",
+    "pb.detail.streakWarn": "连续{n}天未达标！",
+    "pb.detail.noData": "本月该操作员暂无每日数据。",
+    "pb.detail.achieved": "已达标",
+    "pb.detail.notAchieved": "未达标",
+    "pb.detail.perHour": "/小时",
+    "pb.unit.pcs": "件"
+  }
+};
+
+function t(key, params) {
+  const lang = localStorage.getItem(APP_LANG_KEY) || "id";
+  const dict = I18N_DICT[lang] || I18N_DICT.id;
+  let val = dict[key] !== undefined ? dict[key] : (I18N_DICT.id[key] || key);
+  if (params) {
+    Object.keys(params).forEach(function (k) {
+      val = val.split("{" + k + "}").join(params[k]);
+    });
+  }
+  return val;
+}
+
+// Peta status mentah (value data) -> key i18n label yang udah ada di filter dropdown,
+// dipakai buat nampilin label status di tabel/detail biar ikut ganti bahasa juga.
+const STATUS_I18N_KEY = {
+  "Dedicated Operator": "pb.filter.statusDedicated",
+  "DW Reguler Pria": "pb.filter.statusRegPria",
+  "DW Reguler Wanita": "pb.filter.statusRegWanita",
+  "DW On Call": "pb.filter.statusOnCall"
+};
+function statusLabel(status) {
+  const key = STATUS_I18N_KEY[status];
+  return key ? t(key) : status;
+}
+
+// Nama bulan buat format tanggal, ikut bahasa aktif
+const MONTH_NAMES_I18N = {
+  id: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"],
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  ja: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
+  zh: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
+};
+function getMonthNames() {
+  const lang = localStorage.getItem(APP_LANG_KEY) || "id";
+  return MONTH_NAMES_I18N[lang] || MONTH_NAMES_I18N.id;
+}
+
+function applyI18n(lang) {
+  const dict = I18N_DICT[lang] || I18N_DICT.id;
+  document.querySelectorAll("[data-i18n]").forEach(function (el) {
+    const key = el.getAttribute("data-i18n");
+    if (dict[key] !== undefined) el.textContent = dict[key];
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(function (el) {
+    const key = el.getAttribute("data-i18n-placeholder");
+    if (dict[key] !== undefined) el.placeholder = dict[key];
+  });
+}
+
+function initAppLanguageSwitcher() {
+  const sel = document.getElementById("appLangSelect");
+  const lang = localStorage.getItem(APP_LANG_KEY) || "id";
+  if (sel) sel.value = lang;
+  applyI18n(lang);
+}
+function setAppLanguage(lang) {
+  localStorage.setItem(APP_LANG_KEY, lang);
+  applyI18n(lang);
+
+  // Semua konten yang dirender lewat JS (bukan elemen data-i18n statis) harus
+  // di-render ulang manual, karena teksnya "dibekukan" saat pertama kali dirender.
+  if (document.getElementById("thTotalCol")) renderThTotalHeader();
+  if (document.getElementById("pbTableBody")) renderPbTable(); // ini juga cascade ke summary, agency chart, leaderboard
+
+  // Kalau modal detail harian sedang kebuka, refresh juga isinya
+  const detailModal = document.getElementById("pbDetailModal");
+  if (detailModal && detailModal.classList.contains("active") && currentDetailOpsId) {
+    openPbDetail(currentDetailOpsId);
+  }
+
+  // Kalau papan Saran & Masukan sedang kebuka, refresh state kosong/error/list-nya
+  if (lastFeedbackSnapshot !== null) {
+    renderFeedbackList(lastFeedbackSnapshot);
+  }
+}
+
+// ==== SARAN & MASUKAN (papan terbuka realtime — sama root Firebase dgn modul lain, jadi 1 papan buat semua modul) ====
+const FB_FEEDBACK_ROOT = "prDcGlobal/feedback";
+let fbFeedbackRef = null;
+let lastFeedbackSnapshot = null;
+
+function escapeFeedbackHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : String(str);
+  return div.innerHTML;
+}
+
+function openFeedbackBoard() {
+  document.getElementById("fbBoardBackdrop").classList.add("open");
+  initFeedbackBoardSync();
+}
+function closeFeedbackBoard() {
+  document.getElementById("fbBoardBackdrop").classList.remove("open");
+}
+
+function initFeedbackBoardSync() {
+  if (fbFeedbackRef) return; // udah nyala dari sebelumnya, gak perlu attach listener dobel
+  try {
+    const db = firebase.database();
+    fbFeedbackRef = db.ref(FB_FEEDBACK_ROOT).orderByChild("createdAt").limitToLast(100);
+    fbFeedbackRef.on("value", function (snapshot) {
+      lastFeedbackSnapshot = snapshot.val() || {};
+      renderFeedbackList(lastFeedbackSnapshot);
+    }, function (err) {
+      console.error("Gagal baca Saran & Masukan:", err);
+      const list = document.getElementById("fbBoardList");
+      if (list) list.innerHTML = '<div class="fb-board-empty">' + t('feedback.errorLoad') + '</div>';
+    });
+  } catch (e) {
+    console.error("Firebase belum siap buat Saran & Masukan:", e);
+    const list = document.getElementById("fbBoardList");
+    if (list) list.innerHTML = '<div class="fb-board-empty">' + t('feedback.errorConn') + '</div>';
+  }
+}
+
+function renderFeedbackList(data) {
+  const list = document.getElementById("fbBoardList");
+  if (!list) return;
+  const items = Object.keys(data).map(function (k) { return Object.assign({}, data[k], { _key: k }); });
+  if (!items.length) {
+    list.innerHTML = '<div class="fb-board-empty">' + t('feedback.empty') + '</div>';
+    return;
+  }
+  items.sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+  list.innerHTML = items.map(function (item) {
+    const dt = item.createdAt ? new Date(item.createdAt) : null;
+    const timeStr = dt && !isNaN(dt) ? (String(dt.getDate()).padStart(2, '0') + '/' + String(dt.getMonth() + 1).padStart(2, '0') + ' ' + String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0')) : '-';
+    const userLabel = item.userEmail ? item.userEmail.split('@')[0] : t('feedback.anon');
+    return '<div class="fb-board-item">' +
+      '<div class="fb-board-item-head">' +
+      '<span class="fb-board-item-user">' + escapeFeedbackHtml(userLabel) + '</span>' +
+      '<span class="fb-board-item-time">' + timeStr + '</span>' +
+      '</div>' +
+      '<p class="fb-board-item-msg">' + escapeFeedbackHtml(item.message) + '</p>' +
+      '</div>';
+  }).join('');
+}
+
+function submitFeedback() {
+  const input = document.getElementById("fbBoardInput");
+  const btn = document.getElementById("fbBoardSubmitBtn");
+  const msg = input.value.trim();
+  if (!msg) return;
+  if (!window.firebase || !firebase.apps || !firebase.apps.length) {
+    alert(t('feedback.errorConn'));
+    return;
+  }
+  btn.disabled = true;
+  const db = firebase.database();
+  db.ref(FB_FEEDBACK_ROOT).push().set({
+    message: msg,
+    userEmail: window.__authUserEmail || null,
+    createdAt: Date.now()
+  }).then(function () {
+    input.value = "";
+  }).catch(function (err) {
+    console.error("Gagal kirim Saran & Masukan:", err);
+    alert(t('feedback.errorSend'));
+  }).finally(function () {
+    btn.disabled = false;
+  });
+}
+</script>
+
+<script>
+// ==== APP-SHELL BRIDGE ====
+// Kalau halaman ini dibuka langsung (bukan lewat index.html app-shell), link sidebar
+// tetap jalan normal (pindah halaman biasa). Tapi kalau dibuka di dalam iframe shell,
+// klik link ke modul lain di-intercept dan diteruskan ke shell lewat postMessage,
+// biar shell yang toggle tab tanpa reload sama sekali.
+(function () {
+  if (window.self === window.top) return; // diakses langsung, biarin behavior default
+
+  function hijack(id, tab, submenu) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("click", function (e) {
+      e.preventDefault();
+      window.top.postMessage({ source: "pkydc", type: "switchTab", tab: tab, submenu: submenu || null }, "*");
+    });
+  }
+
+  hijack("navToRestTime", "rest-time");
+  hijack("navToInbound", "inbound");
+  hijack("navToOutboundAging", "outbound", "aging");
+  hijack("navToOutboundOccupancy", "outbound", "occupancy");
+  hijack("navToOutboundLog", "outbound");
+  hijack("navToInventoryControl", "inventory-control");
+
+  // Suruh nutup semua grup Sidebar tiap kali shell nge-switch balik ke tab ini
+  window.addEventListener("message", function (e) {
+    var data = e.data;
+    if (!data || data.source !== "pkydc") return;
+    if (data.type === "collapseSidebarGroups") collapseAllSidebarGroups();
+  });
+})();
+</script>
+</body>
+</html>
