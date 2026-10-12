@@ -1,11 +1,3 @@
-/**
- * netlify/functions/_outbound-routes.js
- * ------------------------------------------------------------------
- * Daftar Route Inner Island (label + hub-hub di dalamnya), disalin
- * PERSIS dari linehaulSchedule di outbound.html (hasil linehaulRoutes).
- * Kalau lo nambah/ubah route di outbound.html, update file ini juga,
- * biar notif SeaTalk ngitungnya sama kayak dashboard.
- */
 module.exports = 
 [
   {
@@ -16,10 +8,11 @@ module.exports =
     ]
   },
   {
-    "label": "Pahandut Hub - Pahandut 3 Hub",
+    "label": "Pahandut Hub - Pahandut 2 Hub - Pahandut 3 Hub",
     "hubs": [
       "Pahandut Hub",
-      "Pahandut 3 Hub"
+      "Pahandut 2 Hub",
+      "Pahandut 3 Hub",
     ]
   },
   {
