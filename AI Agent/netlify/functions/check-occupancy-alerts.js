@@ -46,7 +46,7 @@ const mentionTag = (email) => `<mention-tag target="seatalk://user?email=${email
 function buildMentionText() {
   if (!ENABLE_MENTION) return "";
   const parts = [];
-  if (TAG_EMAILS.length) parts.push("Ayo digasin request sekarang " + TAG_EMAILS.map(mentionTag).join(" "));
+  if (TAG_EMAILS.length) parts.push("Ayo digasin request sekarang ke MM, siapin Paket & MP nya " + TAG_EMAILS.map(mentionTag).join(" "));
   if (CC_EMAILS.length) parts.push("Cc : " + CC_EMAILS.map(mentionTag).join(" "));
   return parts.join("\n");
 }
