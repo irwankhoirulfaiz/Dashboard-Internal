@@ -118,6 +118,7 @@ async function sendGroupImage(accessToken, groupId, base64Png) {
 // SeaTalk balikin { code: 0 } kalau sukses. Kalau bukan 0, anggap gagal biar
 // state "sudah dialert" gak ke-tandain padahal pesannya gak sampai.
 function assertSent(result, what) {
+  console.log(`[occupancy-alert] respon SeaTalk (${what}): ` + JSON.stringify(result));
   if (result && typeof result.code === "number" && result.code !== 0) {
     throw new Error(`SeaTalk nolak pesan (${what}): ` + JSON.stringify(result));
   }
@@ -209,6 +210,8 @@ exports.handler = async () => {
   if (toAlert.length) {
     toAlert.sort((a, b) => b.item.total - a.item.total);
     const messages = chunkBlocks(toAlert.map((a) => buildBlock(a.item, a.tier)));
+    if (!groupId) throw new Error("Env var SEATALK_TARGET_GROUP_ID belum diset di Netlify.");
+    console.log(`[occupancy-alert] ngirim ${toAlert.length} route ke grup ...${String(groupId).slice(-6)}`);
     const token = await getSeatalkAccessToken();
 
     // 1) Gambar tabel dulu. Kalau gagal (termasuk modul gambar gak kebaca),
