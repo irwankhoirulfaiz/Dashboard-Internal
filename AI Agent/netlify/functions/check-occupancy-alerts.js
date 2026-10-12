@@ -1,22 +1,3 @@
-/**
- * netlify/functions/check-occupancy-alerts.js
- * ------------------------------------------------------------------
- * Scheduled Function (jadwal di netlify.toml, tiap 15 menit).
- * Baca data import Outbound terbaru dari Firebase, hitung jumlah parcel
- * per Route (logika sama kayak tabel "Breakdown Volume & Aging Days Inner
- * Island" di outbound.html), lalu kirim alert ke grup SeaTalk kalau
- * volume route masuk salah satu tier.
- *
- * Hemat kuota: yang dicek tiap 15 menit cuma /latestImportMeta (kecil).
- * Data gede (/latestImportData) baru ditarik kalau ada import BARU.
- *
- * Anti-spam (state di Firebase /occupancyAlertState):
- *   - Alert dikirim kalau route baru masuk tier, atau tier-nya NAIK,
- *     atau hari (WIB) udah ganti, atau udah lewat REMIND_MINUTES sejak
- *     alert terakhir (dan datanya import baru).
- *   - Kalau volume turun di bawah 1.200, state di-reset.
- */
-
 const zlib = require("zlib");
 const {
   db,
@@ -24,24 +5,26 @@ const {
   sendSeatalkGroupMessage,
 } = require("./_seatalk-common");
 const ROUTES = require("./_outbound-routes");
+const { renderEarlyLoadingTable } = require("./_alert-image");
 
-// ============== KONFIGURASI (ubah di sini kalau perlu) ==============
+const SEATALK_API_BASE = "https://openapi.seatalk.io";
+
 const FB_ROOT = "prDcOutboundMonitoring";
 const STATE_PATH = FB_ROOT + "/occupancyAlertState";
 const INCLUDE_OUTER = false;     // true = Outer Island (Kosambi 2 DC dkk) ikut dialert
 const REMIND_MINUTES = 180;      // ingetin ulang kalau tier sama & udah segini lama (0 = matiin)
 const MAX_IMPORT_AGE_MIN = 180;  // import yang lebih tua dari ini dianggap basi, gak dialert
 const MAX_MSG_CHARS = 3500;      // batas aman panjang 1 pesan SeaTalk
+const SEND_IMAGE = true;         // kirim gambar tabel dulu sebelum teks (false = teks aja)
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
-// Tier berdasarkan jumlah parcel (batas bawah INKLUSIF: 2.000 masuk tier 2).
 const TIERS = [
-  { level: 6, min: 6000, title: "Urgent Need Additional Slot & Early Loading Segera!" },
-  { level: 5, min: 5000, title: "Urgent Need Additional Slot & Early Loading Segera!" },
-  { level: 4, min: 4000, title: "Urgent Need Early Loading Segera!" },
-  { level: 3, min: 3000, title: "Urgent Need Early Loading Segera!" },
-  { level: 2, min: 2000, title: "Need Early Loading Segera!" },
-  { level: 1, min: 1200, title: "Need Early Loading!" },
+  { level: 6, min: 6000, short: "URGENT + Tambah Slot", title: "Urgent Need Additional Slot & Early Loading Segera!" },
+  { level: 5, min: 5000, short: "URGENT + Tambah Slot", title: "Urgent Need Additional Slot & Early Loading Segera!" },
+  { level: 4, min: 4000, short: "URGENT Early Loading", title: "Urgent Need Early Loading Segera!" },
+  { level: 3, min: 3000, short: "URGENT Early Loading", title: "Urgent Need Early Loading Segera!" },
+  { level: 2, min: 2000, short: "Early Loading Segera", title: "Need Early Loading Segera!" },
+  { level: 1, min: 1200, short: "Need Early Loading", title: "Need Early Loading!" },
 ];
 
 function getTier(total) {
@@ -118,6 +101,34 @@ function buildBlock(item, tier) {
   );
 }
 
+// Kirim gambar PNG (base64) ke grup SeaTalk.
+async function sendGroupImage(accessToken, groupId, base64Png) {
+  const res = await fetch(`${SEATALK_API_BASE}/messaging/v2/group_chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      group_id: groupId,
+      message: { tag: "image", image: { content: base64Png } },
+    }),
+  });
+  return res.json();
+}
+
+// SeaTalk balikin { code: 0 } kalau sukses. Kalau bukan 0, anggap gagal biar
+// state "sudah dialert" gak ke-tandain padahal pesannya gak sampai.
+function assertSent(result, what) {
+  if (result && typeof result.code === "number" && result.code !== 0) {
+    throw new Error(`SeaTalk nolak pesan (${what}): ` + JSON.stringify(result));
+  }
+}
+
+function formatWibStamp(isoStr) {
+  const d = new Date(new Date(isoStr).getTime() + WIB_OFFSET_MS);
+  const bln = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getUTCDate())} ${bln[d.getUTCMonth()]} ${d.getUTCFullYear()} ${pad(d.getUTCHours())}.${pad(d.getUTCMinutes())} WIB`;
+}
+
 function chunkBlocks(blocks) {
   const messages = [];
   let current = "";
@@ -189,8 +200,32 @@ exports.handler = async () => {
     toAlert.sort((a, b) => b.item.total - a.item.total);
     const messages = chunkBlocks(toAlert.map((a) => buildBlock(a.item, a.tier)));
     const token = await getSeatalkAccessToken();
+
+    // 1) Gambar tabel dulu. Kalau gagal, jangan sampai nahan alert teks.
+    if (SEND_IMAGE) {
+      try {
+        const png = await renderEarlyLoadingTable(
+          toAlert.map((a) => ({
+            label: a.item.label,
+            total: a.item.total,
+            agingLabel: agingLabel(a.item.maxAging),
+            level: a.tier.level,
+            shortTitle: a.tier.short,
+          })),
+          {
+            title: "Early Loading Alert — Palangka Raya DC",
+            subtitle: `Data import: ${formatWibStamp(meta.importedAt)}  ·  ${toAlert.length} route perlu tindakan`,
+          }
+        );
+        assertSent(await sendGroupImage(token, groupId, png), "gambar");
+      } catch (err) {
+        console.error("Gagal kirim gambar tabel (lanjut kirim teks):", err);
+      }
+    }
+
+    // 2) Teks alert (format asli).
     for (const text of messages) {
-      await sendSeatalkGroupMessage(token, groupId, text);
+      assertSent(await sendSeatalkGroupMessage(token, groupId, text), "teks");
     }
     toAlert.forEach((a) => {
       stateUpdates[a.key] = { level: a.tier.level, date: today, sentAt: now };
