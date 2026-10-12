@@ -14,13 +14,13 @@
  */
 
 const MODEL_CHAIN = [
-  "gemini-3-flash",
-  "gemini-3.1-flash-lite",
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
-  "gemini-3.6-flash",
-  "gemini-3.7-flash",
-  "gemini-3.8-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-3-flash",
 ];
 
 // Hemat -> mikir. Naik tangga di model yang sama kalau kena error
@@ -56,7 +56,7 @@ function isThinkingLevelError(status, data) {
 function shouldSwitchModel(status, data) {
   if (status === 429 || status === 503 || status === 404) return true;
   const msg = errMsgOf(data);
-  return /RESOURCE_EXHAUSTED|UNAVAILABLE|overloaded|experiencing high demand|NOT_FOUND|no longer available/i.test(msg);
+  return /RESOURCE_EXHAUSTED|UNAVAILABLE|overloaded|experiencing high demand|NOT_FOUND|no longer available|ACCESS_TOKEN_TYPE_UNSUPPORTED/i.test(msg);
 }
 
 function buildChain() {
@@ -86,14 +86,13 @@ async function callGemini(model, body, level, apiKey, signal) {
       thinkingConfig: { thinkingLevel: level },
     }),
   });
-  // Auth pakai ?key= persis kayak gemini-proxy.js (yang terbukti jalan buat
-  // Odyssey). Sempat dicoba lewat header x-goog-api-key tapi kena 401.
+  // Auth lewat header x-goog-api-key: ini cara resmi di dokumentasi Gemini
+  // API, dan satu-satunya yang didukung buat key format baru "AQ." (auth key).
   const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/" + model +
-      ":generateContent?key=" + encodeURIComponent(apiKey),
+    "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify(payload),
       signal,
     }
@@ -140,6 +139,12 @@ async function askGemini(userText) {
 
         if (isThinkingLevelError(status, data)) continue; // naik level, model sama
         if (shouldSwitchModel(status, data)) {
+          if (status === 401) {
+            console.error(
+              "Gemini 401 di " + model + " | panjang key=" + apiKey.length +
+              ", awalan: " + apiKey.slice(0, 3)
+            );
+          }
           lastErr = model + " -> " + status;
           break; // pindah model
         }
