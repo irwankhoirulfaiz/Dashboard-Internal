@@ -4,7 +4,7 @@
   publish = "."
 
 [functions."check-occupancy-alerts"]
-  schedule = "*/1 * * * *"
+  schedule = "*/80 * * * *"
   included_files = [
     "netlify/functions/node_modules/@resvg/resvg-wasm/index_bg.wasm",
     "netlify/functions/node_modules/dejavu-fonts-ttf/ttf/*.ttf"
