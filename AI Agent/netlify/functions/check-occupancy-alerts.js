@@ -9,6 +9,9 @@ const SEATALK_API_BASE = "https://openapi.seatalk.io";
 const FB_ROOT = "prDcOutboundMonitoring";
 const STATE_PATH = FB_ROOT + "/occupancyAlertState";
 const INCLUDE_OUTER = false;     // true = Outer Island (Kosambi 2 DC dkk) ikut dialert
+const ALERT_EVERY_RUN = true;    // true = tiap function jalan, semua route >= 1.200 selalu dialert (gak nunggu import baru / tier naik)
+const ALERT_INTERVAL_MINUTES = 70; // jarak minimal antar alert (dipakai kalau ALERT_EVERY_RUN = true). 0 = alert di setiap function jalan
+const INTERVAL_GRACE_MS = 2 * 60 * 1000; // toleransi biar jadwal cron 5 menit gak ngegeser ke 75 menit
 const REMIND_MINUTES = 180;      // ingetin ulang kalau tier sama & udah segini lama (0 = matiin)
 const MAX_IMPORT_AGE_MIN = 180;  // import yang lebih tua dari ini dianggap basi, gak dialert
 const MAX_MSG_CHARS = 3500;      // batas aman panjang 1 pesan SeaTalk
@@ -43,7 +46,7 @@ const mentionTag = (email) => `<mention-tag target="seatalk://user?email=${email
 function buildMentionText() {
   if (!ENABLE_MENTION) return "";
   const parts = [];
-  if (TAG_EMAILS.length) parts.push("Ayo digasin request sekarang ke MM, siapin paketnya " + TAG_EMAILS.map(mentionTag).join(" "));
+  if (TAG_EMAILS.length) parts.push("Ayo digasin request sekarang " + TAG_EMAILS.map(mentionTag).join(" "));
   if (CC_EMAILS.length) parts.push("Cc : " + CC_EMAILS.map(mentionTag).join(" "));
   return parts.join("\n");
 }
@@ -202,7 +205,16 @@ exports.handler = async () => {
 
   const stateSnap = (await db().ref(STATE_PATH).get()).val() || {};
   const lastProcessed = stateSnap._meta && stateSnap._meta.lastImportedAt;
-  if (lastProcessed === meta.importedAt) {
+  const lastAlertAt = (stateSnap._meta && stateSnap._meta.lastAlertAt) || 0;
+
+  // Jaga interval antar alert (function-nya sendiri dijadwalin lebih sering, mis. tiap 5 menit).
+  if (ALERT_EVERY_RUN && ALERT_INTERVAL_MINUTES > 0) {
+    const elapsed = Date.now() - lastAlertAt;
+    if (elapsed < ALERT_INTERVAL_MINUTES * 60000 - INTERVAL_GRACE_MS) {
+      return done(`belum waktunya alert lagi (${Math.round(elapsed / 60000)} dari ${ALERT_INTERVAL_MINUTES} menit sejak alert terakhir)`);
+    }
+  }
+  if (!ALERT_EVERY_RUN && lastProcessed === meta.importedAt) {
     return done(`import belum berubah (importedAt ${meta.importedAt}), sudah pernah diproses`);
   }
 
@@ -241,7 +253,7 @@ exports.handler = async () => {
     const isRise = !prev || tier.level > (prev.level || 0);
     const needRemind = REMIND_MINUTES > 0 && prev && now - (prev.sentAt || 0) >= REMIND_MINUTES * 60000;
 
-    if (isNewDay || isRise || needRemind) {
+    if (ALERT_EVERY_RUN || isNewDay || isRise || needRemind) {
       toAlert.push({ item, tier, key });
     } else if (tier.level !== prev.level) {
       // tier turun tapi masih di atas 1.200: catat aja, gak perlu alert
@@ -297,7 +309,10 @@ exports.handler = async () => {
 
   const updates = {};
   Object.keys(stateUpdates).forEach((k) => { updates[`${STATE_PATH}/${k}`] = stateUpdates[k]; });
-  updates[`${STATE_PATH}/_meta`] = { lastImportedAt: meta.importedAt };
+  updates[`${STATE_PATH}/_meta`] = {
+    lastImportedAt: meta.importedAt,
+    lastAlertAt: toAlert.length ? now : lastAlertAt,
+  };
   await db().ref().update(updates);
 
   return done(
