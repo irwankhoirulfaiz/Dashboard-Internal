@@ -1,0 +1,17 @@
+[build]
+  command = "npm install --prefix netlify/functions"
+  functions = "netlify/functions"
+  publish = "."
+
+[functions."check-low-stock"]
+  schedule = "*/15 * * * *"
+
+# Alert Late Arrival numpuk (Inbound) & operator istirahat >60 menit (Rest Time).
+[functions."check-ops-alerts"]
+  schedule = "*/15 * * * *"
+
+# Daily Briefing otomatis ke grup SeaTalk. Jam 08:00 WIB = 01:00 UTC.
+# Format: menit jam tanggal bulan hari — ubah jamnya (angka ke-2) kalau
+# mau geser ke jam awal shift yang lain.
+[functions."daily-briefing"]
+  schedule = "0 1 * * *"
