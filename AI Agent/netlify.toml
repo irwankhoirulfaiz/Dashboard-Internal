@@ -2,3 +2,6 @@
   command = "npm install --prefix netlify/functions"
   functions = "netlify/functions"
   publish = "."
+
+[functions."check-occupancy-alerts"]
+  schedule = "*/1 * * * *"
