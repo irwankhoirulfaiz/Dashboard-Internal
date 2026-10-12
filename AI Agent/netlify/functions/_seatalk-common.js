@@ -1,36 +1,8 @@
-/**
- * _seatalk-common.js
- * ------------------------------------------------------------------
- * Helper bersama dipakai oleh seatalk-webhook.js, check-low-stock.js,
- * check-ops-alerts.js & daily-briefing.js. File ini BUKAN endpoint
- * sendiri (gak diawali handler), jadi Netlify gak akan nge-generate
- * URL publik buat file ini — aman ditaruh di folder functions yang
- * sama.
- *
- * ISI (per modul dashboard):
- *   - Inventory Control (Stock)          -> getStockItems / answerInventoryQuestion
- *   - Inbound (LH Tracking)              -> getInboundTrips / answerInboundQuestion
- *   - Outbound Monitoring (Aging)        -> getOutboundRows / answerOutboundQuestion
- *   - Rest Time & Asset Usage (PDA)      -> getRestAssetData / answerRestTimeQuestion
- *   - Performance Bagger                 -> getTodayBaggerRecords / answerPerformanceBaggerQuestion
- *   - Router lintas modul                -> answerModuleQuestion (dipanggil dari seatalk-webhook.js)
- *
- * Logika hitung status/alert di sini SENGAJA niru PERSIS fungsi yang
- * sama di dashboard (inbound.html, outbound.html) & report-agent.html
- * (Odyssey) — biar jawaban bot selalu konsisten sama yang ditampilin
- * dashboard, bukan ngitung ulang dengan cara sendiri.
- */
-
 const admin = require("firebase-admin");
 const zlib = require("zlib");
 
 const SEATALK_API_BASE = "https://openapi.seatalk.io";
 
-// ================= FIREBASE ADMIN INIT =================
-// Env var FIREBASE_SERVICE_ACCOUNT_JSON diisi ISI MENTAH file JSON service
-// account (Firebase Console > Project Settings > Service Accounts >
-// Generate new private key) - copy-paste langsung isinya, gak perlu
-// di-encode base64 dulu.
 function getFirebaseApp() {
   if (admin.apps.length) return admin.app();
 
@@ -50,10 +22,6 @@ function db() {
   return getFirebaseApp().database();
 }
 
-// ================= HELPER TANGGAL (WIB) =================
-// Netlify Functions jalan di UTC, sedangkan semua workingDate/tanggal di
-// dashboard dicatat pakai jam lokal WIB (UTC+7). Geser manual biar "hari
-// ini" versi bot cocok sama "hari ini" versi dashboard.
 function nowWIB() {
   return new Date(Date.now() + 7 * 3600000);
 }
@@ -79,19 +47,27 @@ async function getSeatalkAccessToken() {
   return data.app_access_token;
 }
 
-async function sendSeatalkGroupMessage(accessToken, groupId, text) {
+async function sendSeatalkGroupMessage(accessToken, groupId, text, opts = {}) {
+  const body = {
+    group_id: groupId,
+    message: { tag: "text", text: { content: text } },
+  };
+  if (opts.threadId) body.thread_id = opts.threadId;
+  if (opts.quotedMessageId) body.quoted_message_id = opts.quotedMessageId;
+
   const res = await fetch(`${SEATALK_API_BASE}/messaging/v2/group_chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({
-      group_id: groupId,
-      message: { tag: "text", text: { content: text } },
-    }),
+    body: JSON.stringify(body),
   });
-  return res.json();
+  const data = await res.json();
+  if (data && typeof data.code === "number" && data.code !== 0) {
+    console.error("SeaTalk nolak pesan grup:", JSON.stringify(data));
+  }
+  return data;
 }
 
 async function sendSeatalkPrivateMessage(accessToken, employeeCode, text) {
@@ -108,10 +84,6 @@ async function sendSeatalkPrivateMessage(accessToken, employeeCode, text) {
   });
   return res.json();
 }
-
-// ================= INVENTORY CONTROL (Stock) =================
-// NOTE: masih hardcode facility "SOC" (sama kayak check-low-stock.js yang
-// udah jalan). Kalau nanti mau multi-facility, tinggal parameterisasi ini.
 
 async function getStockItems() {
   const snap = await db().ref("inventoryControl/SOC/stock").get();
@@ -271,6 +243,10 @@ async function answerOutboundQuestion(text) {
 }
 
 // ================= REST TIME & ASSET USAGE (PDA) =================
+// NOTE: bagian ini TIDAK lagi masuk router chat (answerModuleQuestion).
+// getRestAssetData & computeRestAssetLiveStatus tetap dipertahankan karena
+// kemungkinan masih dipakai alert terjadwal (check-ops-alerts.js) —
+// alert "Operator Baru Kena Istirahat >60 Menit".
 const MON_ROOT = "prDcMonitoring";
 const MON_WINDOW_DAYS = 3; // disamain kayak window di rest-time.html/report-agent.html
 
@@ -353,6 +329,8 @@ function computeRestAssetLiveStatus(logs, assetLogs, master, stationMap) {
   return { operatorIstirahatLebih60Menit, pdaBelumKembali };
 }
 
+// Dipertahankan (dan tetap di-export) biar file lain yang mungkin masih
+// meng-import-nya gak error, tapi sudah TIDAK terdaftar di router chat.
 async function answerRestTimeQuestion(text) {
   const lower = text.toLowerCase();
   if (!/\bpda\b|istirahat|\bbreak\b|check ?in|check ?out|rest time/.test(lower)) return null;
@@ -409,14 +387,14 @@ async function answerPerformanceBaggerQuestion(text) {
 
 // ================= ROUTER LINTAS MODUL =================
 // Dipanggil dari seatalk-webhook.js. Urutan cek sengaja spesifik dulu
-// (Inbound/Rest Time/Bagger/Outbound) baru Inventory paling akhir, niru
-// pola routing keyword yang sama kayak Odyssey (report-agent.html) —
-// masing-masing handler return null kalau teksnya gak nyangkut ke
-// modulnya, jadi lanjut dicoba ke handler berikutnya.
+// (Inbound/Bagger/Outbound) baru Inventory paling akhir, niru pola routing
+// keyword yang sama kayak Odyssey (report-agent.html) — masing-masing
+// handler return null kalau teksnya gak nyangkut ke modulnya, jadi lanjut
+// dicoba ke handler berikutnya.
+// Rest Time/PDA sengaja TIDAK ada di daftar ini (udah gak dipakai lewat chat).
 async function answerModuleQuestion(text) {
   const handlers = [
     answerInboundQuestion,
-    answerRestTimeQuestion,
     answerPerformanceBaggerQuestion,
     answerOutboundQuestion,
     answerInventoryQuestion,
