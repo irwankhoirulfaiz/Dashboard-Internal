@@ -86,12 +86,14 @@ async function callGemini(model, body, level, apiKey, signal) {
       thinkingConfig: { thinkingLevel: level },
     }),
   });
+  // Auth pakai ?key= persis kayak gemini-proxy.js (yang terbukti jalan buat
+  // Odyssey). Sempat dicoba lewat header x-goog-api-key tapi kena 401.
   const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/" + model +
+      ":generateContent?key=" + encodeURIComponent(apiKey),
     {
       method: "POST",
-      // Key lewat header, bukan query string, biar gak nongol di log URL.
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal,
     }
@@ -105,7 +107,7 @@ async function callGemini(model, body, level, apiKey, signal) {
  * @param {string} userText pertanyaan user (sudah dibersihin dari mention)
  */
 async function askGemini(userText) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) throw new Error("GEMINI_API_KEY belum di-set di Environment Variables Netlify");
 
   const body = {
