@@ -107,7 +107,8 @@ async function callGemini(model, body, level, apiKey, signal) {
  * @param {string} userText pertanyaan user (sudah dibersihin dari mention)
  */
 async function askGemini(userText) {
-  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  // trim + buang tanda kutip yang kadang ikut ke-paste di env var Netlify.
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim().replace(/^["']+|["']+$/g, "");
   if (!apiKey) throw new Error("GEMINI_API_KEY belum di-set di Environment Variables Netlify");
 
   const body = {
@@ -148,6 +149,13 @@ async function askGemini(userText) {
           // Kosong (mis. kena safety block) -> coba model lain.
           lastErr = model + " -> respons kosong";
           break;
+        }
+        if (status === 401 || status === 403) {
+          // Diagnostik aman: JANGAN log isi key, cuma panjang & awalannya.
+          console.error(
+            "Diagnostik API key: panjang=" + apiKey.length +
+            ", awalan AIza? " + apiKey.startsWith("AIza")
+          );
         }
         // Error lain (mis. 400 payload salah, 403 key salah): gak ada gunanya diulang.
         throw new Error("Gemini error " + status + ": " + errMsgOf(data).slice(0, 300));
