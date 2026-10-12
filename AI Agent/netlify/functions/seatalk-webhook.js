@@ -1,16 +1,3 @@
-/**
- * netlify/functions/seatalk-webhook.js
- * ------------------------------------------------------------------
- * Ini yang jadi Callback URL di SeaTalk Open Platform:
- *   https://<site-lo>.netlify.app/.netlify/functions/seatalk-webhook
- *
- * Menangani 2 hal:
- *   1. Verification request (event_type: "event_verification")
- *   2. Pesan masuk dari user -> jawab pakai data LIVE dari semua modul
- *      dashboard (Inbound, Outbound, Rest Time/PDA, Performance Bagger,
- *      Inventory Control) lewat router answerModuleQuestion.
- */
-
 const crypto = require("crypto");
 const {
   getSeatalkAccessToken,
@@ -69,16 +56,21 @@ exports.handler = async (event) => {
   }
 
   const seatalkEvent = body.event || {};
-  const messageText = seatalkEvent?.message?.text?.content;
+  const msg = seatalkEvent.message || {};
+  const messageText = msg.text && msg.text.content;
   if (!messageText) {
     return { statusCode: 200, body: "ok" };
   }
+
+  // TEMPORARY: log payload sekali buat mastiin nama field thread_id /
+  // message_id persis seperti yang diharapkan. Hapus kalau udah beres.
+  console.log("SeaTalk event payload:", JSON.stringify(body));
 
   let answer;
   try {
     answer =
       (await answerModuleQuestion(messageText)) ||
-      "Maaf, aku belum ngerti pertanyaan itu. Coba tanya soal Stock/Consumable (Inventory), trip/Late Arrival/In Transit (Inbound), aging/backlog (Outbound), PDA/istirahat (Rest Time), atau performa/packing (Performance Bagger) ya.";
+      "Maaf, aku belum ngerti pertanyaan itu. Coba tanya soal Stock/Consumable (Inventory), trip/Late Arrival/In Transit (Inbound), aging/backlog (Outbound), atau performa/packing (Performance Bagger) ya.";
   } catch (err) {
     console.error("Gagal ambil data dashboard:", err);
     answer = "Lagi ada gangguan ambil data dari dashboard, coba lagi sebentar ya.";
@@ -87,7 +79,25 @@ exports.handler = async (event) => {
   try {
     const token = await getSeatalkAccessToken();
     if (seatalkEvent.group_id) {
-      await sendSeatalkGroupMessage(token, seatalkEvent.group_id, answer);
+      // Kalau pesan sudah di dalam thread, pakai thread-nya. Kalau pesan
+      // biasa di main feed, jadikan pesan itu root thread baru.
+      const threadId =
+        msg.thread_id && msg.thread_id !== "0" ? msg.thread_id : msg.message_id;
+
+      const result = await sendSeatalkGroupMessage(
+        token,
+        seatalkEvent.group_id,
+        answer,
+        { threadId }
+      );
+
+      // Fallback: kalau thread/pesan gak ketemu (4009/4010), balas pakai
+      // quote aja supaya tetap nyambung ke pesan yang nge-tag.
+      if (result && (result.code === 4009 || result.code === 4010)) {
+        await sendSeatalkGroupMessage(token, seatalkEvent.group_id, answer, {
+          quotedMessageId: msg.message_id,
+        });
+      }
     } else if (seatalkEvent.employee_code) {
       await sendSeatalkPrivateMessage(token, seatalkEvent.employee_code, answer);
     }
