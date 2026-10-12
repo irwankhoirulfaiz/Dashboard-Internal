@@ -16,14 +16,14 @@ const FB_ROOT = U.FB_ROOT;
 const STATE_PATH = FB_ROOT + "/stuckAlertState";
 
 const INCLUDE_OUTER = false;      // true = hub di luar daftar route (Outer Island dkk) ikut dicek
-const STUCK_MIN_AGING = 2;        // aging >= 2 hari (D-2 ke atas) dianggap stuck. Ganti 3 kalau mau mulai D-3
+const STUCK_MIN_AGING = 3;        // aging >= 3 hari (D-3 ke atas, alias lebih dari D-2) dianggap stuck
 const STUCK_MIN_PARCEL = 1;       // minimal parcel stuck per hub biar dialert
 const STUCK_SHOW_TO = true;       // tampilin daftar TO Number parcel yang stuck
 const STUCK_MAX_TO_PER_HUB = 20;  // maks TO Number per hub (sisanya diringkas "+N TO lainnya")
 const STUCK_INTERVAL_MINUTES = 70; // jarak antar alert. 0 = alert di setiap function jalan
 const INTERVAL_GRACE_MS = 2 * 60 * 1000; // toleransi biar jadwal cron 5 menit gak ngegeser ke 75 menit
 const MAX_IMPORT_AGE_MIN = 180;   // import yang lebih tua dari ini dianggap basi, gak dialert
-const MENTION_LEAD = "Parcel stuck lewat D-1, mohon segera ditindaklanjuti";
+const MENTION_LEAD = `Parcel stuck lewat ${U.agingLabel(STUCK_MIN_AGING - 1)}, mohon segera ditindaklanjuti`;
 
 // Catat parcel stuck per hub, dipecah per bucket aging (D-6 = D-6+).
 function addStuck(target, aging, row) {
