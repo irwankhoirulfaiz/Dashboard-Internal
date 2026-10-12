@@ -146,29 +146,38 @@ function chunkBlocks(blocks) {
   return messages;
 }
 
+// Semua jalur keluar dicatat ke log Netlify biar kelihatan KENAPA notif gak kekirim.
+function done(msg) {
+  console.log("[occupancy-alert] " + msg);
+  return { statusCode: 200, body: msg };
+}
+
 exports.handler = async () => {
   const groupId = process.env.SEATALK_TARGET_GROUP_ID;
   const meta = (await db().ref(FB_ROOT + "/latestImportMeta").get()).val();
-  if (!meta || !meta.importedAt) return { statusCode: 200, body: "belum ada data import" };
+  if (!meta || !meta.importedAt) return done("belum ada data import (latestImportMeta kosong)");
 
   const stateSnap = (await db().ref(STATE_PATH).get()).val() || {};
   const lastProcessed = stateSnap._meta && stateSnap._meta.lastImportedAt;
   if (lastProcessed === meta.importedAt) {
-    return { statusCode: 200, body: "import belum berubah" };
+    return done(`import belum berubah (importedAt ${meta.importedAt}), sudah pernah diproses`);
   }
 
   const ageMin = (Date.now() - new Date(meta.importedAt).getTime()) / 60000;
   if (ageMin > MAX_IMPORT_AGE_MIN) {
     await db().ref(STATE_PATH + "/_meta").update({ lastImportedAt: meta.importedAt });
-    return { statusCode: 200, body: `import basi (${Math.round(ageMin)} menit), dilewati` };
+    return done(`import basi (${Math.round(ageMin)} menit > ${MAX_IMPORT_AGE_MIN}), dilewati & ditandai sudah diproses`);
   }
 
   // Tarik & urai data gede (gzip + base64 + columnar, sama kayak di outbound.html)
   const dataGz = (await db().ref(FB_ROOT + "/latestImportData/dataGz").get()).val();
-  if (!dataGz) return { statusCode: 200, body: "data import kosong" };
+  if (!dataGz) return done("data import kosong (latestImportData/dataGz gak ada)");
   const rows = fromColumnar(JSON.parse(zlib.gunzipSync(Buffer.from(dataGz, "base64")).toString("utf8")));
 
   const items = aggregate(rows);
+  const top = items.slice().sort((a, b) => b.total - a.total).slice(0, 3)
+    .map((i) => `${i.label}=${i.total}`).join(" | ");
+  console.log(`[occupancy-alert] import ${meta.importedAt}: ${rows.length} parcel, ${items.filter((i) => i.total >= TIERS[TIERS.length - 1].min).length} route >= ${TIERS[TIERS.length - 1].min}. Top: ${top}`);
   const today = todayWibStr();
   const now = Date.now();
 
@@ -240,5 +249,9 @@ exports.handler = async () => {
   updates[`${STATE_PATH}/_meta`] = { lastImportedAt: meta.importedAt };
   await db().ref().update(updates);
 
-  return { statusCode: 200, body: `alert terkirim untuk ${toAlert.length} route` };
+  return done(
+    toAlert.length
+      ? `alert terkirim untuk ${toAlert.length} route`
+      : "diproses, tapi gak ada route yang perlu dialert (di bawah threshold, atau tier sama & belum waktunya remind)"
+  );
 };
