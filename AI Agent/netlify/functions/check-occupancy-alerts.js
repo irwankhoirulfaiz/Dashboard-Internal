@@ -5,7 +5,8 @@ const {
   sendSeatalkGroupMessage,
 } = require("./_seatalk-common");
 const ROUTES = require("./_outbound-routes");
-const { renderEarlyLoadingTable } = require("./_alert-image");
+// NOTE: _alert-image di-require lazy di dalam try (lihat bagian kirim gambar),
+// supaya kalau modul gambar bermasalah, alert teks tetap terkirim.
 
 const SEATALK_API_BASE = "https://openapi.seatalk.io";
 
@@ -201,9 +202,11 @@ exports.handler = async () => {
     const messages = chunkBlocks(toAlert.map((a) => buildBlock(a.item, a.tier)));
     const token = await getSeatalkAccessToken();
 
-    // 1) Gambar tabel dulu. Kalau gagal, jangan sampai nahan alert teks.
+    // 1) Gambar tabel dulu. Kalau gagal (termasuk modul gambar gak kebaca),
+    //    jangan sampai nahan alert teks.
     if (SEND_IMAGE) {
       try {
+        const { renderEarlyLoadingTable } = require("./_alert-image");
         const png = await renderEarlyLoadingTable(
           toAlert.map((a) => ({
             label: a.item.label,
