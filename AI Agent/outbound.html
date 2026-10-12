@@ -710,7 +710,10 @@ tailwind.config = {
           <i class="fa-solid fa-file-import"></i> <span data-i18n="ob.header.import">Import</span>
         </label>
         <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="hidden" />
-        <span id="fileName" class="text-[10px] text-white/80 font-mono truncate max-w-[90px]" data-i18n="ob.header.sampleData">Data Contoh</span>
+        <button type="button" onclick="openLogUpdateModal()" title="Klik untuk lihat riwayat import" class="flex flex-col items-start leading-tight text-left max-w-[200px] cursor-pointer">
+  <span id="fileName" class="text-[10px] text-white/80 font-mono truncate max-w-full" data-i18n="ob.header.sampleData">Data Contoh</span>
+  <span id="importInfo" class="text-[9px] text-amber-300 font-mono truncate max-w-full">Belum ada import</span>
+</button>
       </div>
     </div>
   </div>
@@ -1537,9 +1540,19 @@ function initOutboundFirebaseSync() {
 
     const fnEl = document.getElementById('fileName');
     if (fnEl) {
-      fnEl.innerText = meta.fileName
-        ? meta.fileName + ' (update ' + formatDateTimeShort(new Date(meta.importedAt)) + ' oleh ' + (meta.importedBy || '-') + ')'
-        : '-';
+  fnEl.innerText = meta.fileName || '-';
+  fnEl.title = meta.fileName || '';
+}
+const infoEl = document.getElementById('importInfo');
+if (infoEl) {
+  const importedDate = new Date(meta.importedAt);
+  const ageMin = (Date.now() - importedDate.getTime()) / 60000;
+  const who = String(meta.importedBy || '-').split('@')[0];
+  infoEl.innerText = '🕒 ' + formatDateTimeShort(importedDate) + ' · ' + who;
+  infoEl.title = 'Terakhir import: ' + importedDate.toLocaleString('id-ID') + ' oleh ' + (meta.importedBy || '-');
+  // Merah kalau import terakhir udah lebih dari 3 jam
+  infoEl.className = 'text-[9px] font-mono truncate max-w-full ' + (ageMin > 180 ? 'text-rose-300' : 'text-amber-300');
+}
     }
 
     // Data gede cuma ditarik kalau importedAt-nya beneran baru (beda dari yang udah
@@ -1669,6 +1682,8 @@ function deleteLogUpdateEntry(key) {
         applyFilters();
         const fnEl = document.getElementById('fileName');
         if (fnEl) fnEl.innerText = '-';
+        const infoEl = document.getElementById('importInfo');
+        if (infoEl) infoEl.innerText = 'Belum ada import';
       }
     });
   }).catch(function (err) {
